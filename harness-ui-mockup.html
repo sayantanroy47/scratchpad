@@ -1,0 +1,1304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Multi-Agent Harness Console</title>
+<style>
+/* Layout: OpenChamber-style shell. Session sidebar | chat column | context panel + icon rail.
+   Dark-first (OpenChamber default dark), light theme mirrors it. */
+:root{
+  color-scheme: dark;
+  --bg:#120f0e; --surface:#171413; --surface-2:#1e1a18; --surface-3:#28221f;
+  --border:#2a2421; --border-strong:#3b332e;
+  --fg:#d3cdc2; --fg-strong:#efe9df; --muted:#8e867b; --faint:#6a6158;
+  --accent:#da7c47; --accent-hover:#eb8c57; --accent-soft:#2d1c12; --on-accent:#1b0f08;
+  --user-bubble:#2d1c12; --user-fg:#eadccb;
+  --ok:#76ad4f; --warn:#d0902c; --err:#da5b4a; --info:#479fe6;
+  --ok-soft:rgba(118,173,79,.13); --warn-soft:rgba(208,144,44,.12); --err-soft:rgba(218,91,74,.13); --info-soft:rgba(71,159,230,.12);
+  --code:#8cc265; --link:#6fa9b9;
+  --a-orch:#da7c47; --a-explorer:#5fa8b8; --a-coder1:#6aa5e8; --a-coder2:#a98be0; --a-tester:#d47fa6; --a-reviewer:#c9b27a;
+  --shadow:0 12px 36px rgba(0,0,0,.5);
+  --font-ui:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono:ui-monospace, "Cascadia Code", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  --r:9px; --r-md:7px; --r-sm:4px;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    color-scheme: light;
+    --bg:#f8f4ee; --surface:#f1ebe2; --surface-2:#fffcf8; --surface-3:#e8e0d4;
+    --border:#e2d9cc; --border-strong:#cfc3b3;
+    --fg:#3b322b; --fg-strong:#1f1914; --muted:#786c61; --faint:#a19486;
+    --accent:#c4602a; --accent-hover:#ad5020; --accent-soft:#f5e1d1; --on-accent:#ffffff;
+    --user-bubble:#f2dfcd; --user-fg:#3a2618;
+    --ok:#3c8a2b; --warn:#a0650a; --err:#bf412e; --info:#2a70bb;
+    --ok-soft:rgba(60,138,43,.11); --warn-soft:rgba(160,101,10,.10); --err-soft:rgba(191,65,46,.10); --info-soft:rgba(42,112,187,.10);
+    --code:#3b7d26; --link:#2d6f84;
+    --a-orch:#c4602a; --a-explorer:#2d8596; --a-coder1:#2f6fb8; --a-coder2:#7353b8; --a-tester:#ad4b7a; --a-reviewer:#8a7340;
+    --shadow:0 12px 36px rgba(70,45,20,.16);
+  }
+}
+:root[data-theme="light"]{
+  color-scheme: light;
+  --bg:#f8f4ee; --surface:#f1ebe2; --surface-2:#fffcf8; --surface-3:#e8e0d4;
+  --border:#e2d9cc; --border-strong:#cfc3b3;
+  --fg:#3b322b; --fg-strong:#1f1914; --muted:#786c61; --faint:#a19486;
+  --accent:#c4602a; --accent-hover:#ad5020; --accent-soft:#f5e1d1; --on-accent:#ffffff;
+  --user-bubble:#f2dfcd; --user-fg:#3a2618;
+  --ok:#3c8a2b; --warn:#a0650a; --err:#bf412e; --info:#2a70bb;
+  --ok-soft:rgba(60,138,43,.11); --warn-soft:rgba(160,101,10,.10); --err-soft:rgba(191,65,46,.10); --info-soft:rgba(42,112,187,.10);
+  --code:#3b7d26; --link:#2d6f84;
+  --a-orch:#c4602a; --a-explorer:#2d8596; --a-coder1:#2f6fb8; --a-coder2:#7353b8; --a-tester:#ad4b7a; --a-reviewer:#8a7340;
+  --shadow:0 12px 36px rgba(70,45,20,.16);
+}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:13.5px/1.5 var(--font-ui);-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:5px}
+code,.mono{font-family:var(--font-mono)}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:14px;height:14px}.ic.xs{width:11px;height:11px;stroke-width:2.4}
+.muted{color:var(--muted)}.faint{color:var(--faint)}
+.spacer{flex:1}
+.ibtn{width:30px;height:30px;display:inline-grid;place-items:center;border-radius:var(--r-md);color:var(--muted);flex:none}
+.ibtn:hover{background:var(--surface-3);color:var(--fg)}
+.mobile-only{display:none}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:272px minmax(0,1fr);height:100%}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;min-width:0}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.topbar{height:48px;flex:none;display:flex;align-items:center;gap:10px;padding-inline:14px 10px;border-bottom:1px solid var(--border);min-width:0}
+.work{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 44px;min-height:0}
+.app.panel-open .work{grid-template-columns:minmax(0,1fr) 368px 44px}
+.chat{display:flex;flex-direction:column;min-width:0;min-height:0}
+.scroll{flex:1;overflow-y:auto;min-height:0;scroll-behavior:auto}
+.thread{max-width:840px;margin-inline:auto;padding:22px 24px 18px;display:flex;flex-direction:column;gap:18px}
+.panel{display:none;border-left:1px solid var(--border);background:var(--surface);flex-direction:column;min-height:0;min-width:0}
+.app.panel-open .panel{display:flex}
+.rail{border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;align-items:center;gap:4px;padding-block:8px}
+.scrim{display:none}
+
+/* ---------- sidebar ---------- */
+.sb-top{height:48px;flex:none;display:flex;align-items:center;gap:9px;padding-inline:14px 8px;border-bottom:1px solid var(--border)}
+.logo{width:22px;height:22px;border-radius:6px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center}
+.logo .ic{width:13px;height:13px;stroke-width:2.4}
+.wordmark{font-weight:600;color:var(--fg-strong);letter-spacing:.01em}
+.sb-new{margin:10px 8px 2px;display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:var(--r-md);color:var(--fg);font-weight:500}
+.sb-new:hover{background:var(--surface-3)}
+.sb-tools{display:flex;gap:2px;padding:0 8px 6px}
+.sb-scroll{flex:1;overflow:auto;padding:2px 8px 12px;min-height:0}
+.sb-gh{display:flex;align-items:center;gap:8px;padding:12px 8px 4px;font-weight:600;color:var(--fg-strong);font-size:13px}
+.sb-gh .ic{color:var(--muted)}
+.sb-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:6px 8px 6px 32px;border-radius:var(--r-md);color:var(--fg);white-space:nowrap;min-width:0}
+.sb-row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sb-row .meta{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.sb-row:hover{background:var(--surface-3)}
+.sb-row.active{background:var(--accent-soft);color:var(--accent)}
+.sb-row.active .meta{color:var(--accent)}
+.sb-row .chev{margin-left:-22px;color:var(--muted)}
+.sb-kids{margin:2px 0 4px 21px;padding-left:6px;border-left:1px solid var(--border-strong);display:flex;flex-direction:column;gap:1px}
+.sb-agent{padding:4px 8px 4px 10px;font-size:12.5px;gap:8px}
+.sb-agent.sel{background:var(--surface-3);color:var(--fg-strong)}
+.sb-more{padding:4px 8px 4px 32px;font-size:12px;color:var(--faint)}
+.sb-wt{padding-left:12px}
+.sb-wt .ic{color:var(--muted)}
+.sb-foot{flex:none;border-top:1px solid var(--border);padding:8px 10px;display:flex;align-items:center;gap:4px}
+.conn{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.conn i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+
+/* ---------- topbar ---------- */
+.tb-title{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.tb-line{display:flex;align-items:center;gap:6px;min-width:0;font-size:14px;color:var(--fg-strong);font-weight:600;white-space:nowrap}
+.tb-line .crumb{font-weight:500;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.tb-line .crumb:hover{color:var(--fg)}
+.tb-line .cur{overflow:hidden;text-overflow:ellipsis}
+.tb-sub{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden}
+.tb-sub .ic{width:12px;height:12px}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--fg);white-space:nowrap;background:transparent}
+button.chip:hover{border-color:var(--border-strong);background:var(--surface-2)}
+.chip.warn{border-color:color-mix(in srgb,var(--warn) 45%,transparent);color:var(--warn);background:var(--warn-soft)}
+.ring{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--fg);font-variant-numeric:tabular-nums}
+.ring svg{width:18px;height:18px;transform:rotate(-90deg)}
+.ring .bgc{fill:none;stroke:var(--surface-3);stroke-width:3}
+.ring .fgc{fill:none;stroke:var(--muted);stroke-width:3;stroke-linecap:round}
+.ring .fgc.hot{stroke:var(--warn)}
+
+/* ---------- status glyphs & pills ---------- */
+.dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--c,var(--muted))}
+.sg{width:12px;height:12px;flex:none;display:inline-grid;place-items:center;border-radius:50%;font-size:9px;font-weight:800;line-height:1;position:relative}
+.sg.run{border:2px solid var(--info);border-right-color:transparent;animation:spin 1s linear infinite}
+.sg.wait{border:2px dotted var(--accent);animation:spin 4s linear infinite}
+.sg.need{background:var(--warn);color:var(--bg)}
+.sg.idle{border:1.5px solid var(--faint)}
+.sg.done{background:var(--ok);color:var(--bg)}
+.sg.block{border:1.5px solid var(--faint)}
+.sg.block::after{content:"";position:absolute;width:9px;height:1.5px;background:var(--faint);transform:rotate(-45deg)}
+.sg.prop{border:1.5px dashed var(--accent)}
+.sg.err{background:var(--err)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sp{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
+.sp.warn{color:var(--warn)}
+.pill{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:500;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:var(--ok-soft)}
+.pill.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);background:var(--warn-soft)}
+.pill.role{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.tid{font-family:var(--font-mono);font-size:11.5px;font-weight:600;color:var(--muted);background:var(--surface-3);border-radius:var(--r-sm);padding:0 5px;line-height:18px;white-space:nowrap}
+.kind{font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:0 6px;border-radius:var(--r-sm);line-height:17px;border:1px solid var(--border-strong);color:var(--muted)}
+.kind.question{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.kind.steer{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.kind.answer{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent)}
+
+/* ---------- buttons ---------- */
+.btn{height:28px;padding:0 11px;border-radius:var(--r-md);border:1px solid var(--border-strong);font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;color:var(--fg);background:var(--surface-2)}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{background:var(--surface-3)}
+.btn.danger{color:var(--err)}
+.btn.xs{height:24px;padding:0 8px;font-size:12px}
+.btn kbd,.kbd{font-family:var(--font-mono);font-size:10.5px;opacity:.7;font-weight:400}
+.btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btns.end{justify-content:flex-end}
+
+/* ---------- messages ---------- */
+.older{align-self:center;display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);border:1px dashed var(--border-strong);border-radius:999px;padding:4px 12px}
+.older:hover{color:var(--fg)}
+.msg-user{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.bubble{max-width:min(580px,88%);background:var(--user-bubble);color:var(--user-fg);padding:10px 14px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.55}
+.to-label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.msg-time{font-size:11.5px;color:var(--faint);display:flex;gap:6px;align-items:center}
+.msg-time .ok{color:var(--ok)}
+.msg-asst{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ah{display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+.ah b{color:var(--fg-strong);font-weight:600}
+.think{color:var(--muted);font-size:13px;display:flex;gap:8px;align-items:baseline;min-width:0}
+.think b{color:var(--fg);font-weight:500;flex:none}
+.think span{font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.acts{border-left:1px solid var(--border-strong);margin-left:5px;padding-left:14px;display:flex;flex-direction:column}
+.acts-h{font-size:12px;color:var(--faint);margin-bottom:2px}
+.act{display:flex;align-items:center;gap:8px;font-size:12.5px;line-height:23px;min-width:0}
+.act .ic{color:var(--muted)}
+.act b{font-weight:500;color:var(--fg);flex:none}
+.act .arg{color:var(--muted);font-family:var(--font-mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.act .dur{color:var(--faint);font-variant-numeric:tabular-nums;font-size:12px;flex:none}
+.md{line-height:1.65;font-size:14px;color:var(--fg);min-width:0;overflow-wrap:anywhere}
+.md p{margin:0 0 6px}.md p:last-child{margin-bottom:0}
+.md ul{margin:4px 0 0;padding-left:20px}
+.md li{margin:2px 0}
+.md b{color:var(--fg-strong);font-weight:600}
+.md code,.q code,.br-t code{font-size:12.5px;color:var(--code);background:var(--surface-2);padding:1px 5px;border-radius:var(--r-sm)}
+.ameta{display:flex;gap:14px;color:var(--faint);font-size:12px;flex-wrap:wrap}
+.ameta span{display:inline-flex;align-items:center;gap:5px}
+.caret{display:inline-block;width:7px;height:15px;background:var(--accent);vertical-align:-2px;margin-left:2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- cards ---------- */
+.card{border:1px solid var(--border);background:var(--surface);border-radius:var(--r);min-width:0}
+.card-h{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:13px;flex-wrap:wrap;min-width:0}
+.card-h b{color:var(--fg-strong);font-weight:600}
+button.card-h{width:100%;text-align:left}
+.card-b{padding:0 12px 12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card.needs{border-color:color-mix(in srgb,var(--warn) 55%,var(--border))}
+.card.accent{border-color:color-mix(in srgb,var(--accent) 60%,var(--border))}
+.card.flash{animation:flash 1.4s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 4px color-mix(in srgb,var(--warn) 45%,transparent)}100%{box-shadow:0 0 0 0 transparent}}
+.q{margin:0;font-size:14px;color:var(--fg-strong);line-height:1.55}
+.small{font-size:12.5px;margin:0}
+.reply{display:flex;gap:8px}
+.reply input{flex:1;min-width:0;height:30px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--bg);padding:0 10px;outline:0}
+.reply input:focus{border-color:var(--accent)}
+.resolved{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.resolved b{color:var(--fg)}
+
+/* task (subagent) card */
+.tcard .card-h{padding-bottom:6px}
+.tc-kind{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.tc-title{color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 140px}
+.tc-act{font-size:13px;color:var(--fg)}
+.shine{background:linear-gradient(90deg,var(--muted) 0%,var(--fg-strong) 45%,var(--muted) 90%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shine 2.6s linear infinite}
+@keyframes shine{from{background-position:100% 0}to{background-position:-100% 0}}
+.prog{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{flex:1;height:4px;border-radius:2px;background:var(--surface-3);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c,var(--muted));border-radius:2px}
+.tc-meta{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.tc-meta span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.tc-meta .ic{width:12px;height:12px}
+.report{font-size:13px;color:var(--fg);border-top:1px solid var(--border);padding-top:10px}
+
+/* plan */
+.ptasks{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden}
+.ptask{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 10px;font-size:12.5px;border-top:1px solid var(--border);background:var(--surface-2)}
+.ptask:first-child{border-top:0}
+.ptask .pt-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.ptask .pt-own{display:inline-flex;gap:6px;align-items:center;color:var(--muted);white-space:nowrap}
+.ptask .pt-dep{color:var(--faint);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ptask.add{background:var(--ok-soft)}
+.ptask.add .pt-title{color:var(--fg-strong)}
+.ptask .mark{font-family:var(--font-mono);font-weight:700;width:10px;color:var(--faint)}
+.ptask.add .mark{color:var(--ok)}
+
+/* inline mail, brief, scratch, diff */
+.mail-row{display:flex;gap:10px;align-items:flex-start;font-size:13px;padding:9px 12px;border-radius:var(--r);border:1px dashed var(--border-strong)}
+.mail-row>.ic{color:var(--muted);margin-top:2px}
+.mr-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.mr-h b{color:var(--fg);font-weight:500}
+.mr-t{color:var(--fg);margin-top:2px;overflow-wrap:anywhere}
+.brief{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.br-h{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.br-h b{color:var(--fg-strong);font-weight:600}
+.br-t{font-size:14px;line-height:1.6;color:var(--fg)}
+.br-m{font-size:12px;color:var(--faint);display:flex;gap:6px 14px;flex-wrap:wrap}
+.scratch{border:1px solid var(--border);border-radius:var(--r);padding:8px 12px 10px;background:var(--surface)}
+.sc-h{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.sc-h b{color:var(--fg);font-weight:600}
+.scratch ul{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 16px}
+.scratch li{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--fg)}
+.scratch li.d{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+.cb{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--faint);flex:none;display:grid;place-items:center}
+.cb.d{background:var(--ok);border-color:var(--ok);color:var(--bg)}
+.cb.p{border-color:var(--info);background:linear-gradient(90deg,var(--info) 50%,transparent 50%)}
+.diff{font-family:var(--font-mono);font-size:12px;line-height:1.65;overflow-x:auto;background:var(--bg);border-top:1px solid var(--border);border-radius:0 0 var(--r) var(--r);padding:4px 0}
+.diff div{white-space:pre;display:flex;min-width:max-content}
+.diff .ln{width:40px;flex:none;text-align:right;padding-right:10px;color:var(--faint);user-select:none}
+.diff .sg2{width:14px;flex:none;color:var(--faint)}
+.diff .a{background:var(--ok-soft)}.diff .a .sg2{color:var(--ok)}
+.diff .r{background:var(--err-soft)}.diff .r .sg2{color:var(--err)}
+.diff .h{color:var(--info)}
+.plus{color:var(--ok);font-variant-numeric:tabular-nums}.minus{color:var(--err);font-variant-numeric:tabular-nums}
+.cmd{font-family:var(--font-mono);font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;overflow-x:auto;white-space:pre;color:var(--fg-strong)}
+details{font-size:12.5px;color:var(--muted)}
+details summary{cursor:pointer;width:max-content}
+details dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:6px 0 0}
+details dt{color:var(--faint)} details dd{margin:0;color:var(--fg);font-family:var(--font-mono);font-size:12px}
+.divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--border-strong)}
+.divider .dv{display:flex;flex-direction:column;align-items:center;text-align:center;gap:1px}
+.divider .dv b{color:var(--fg);font-weight:500;display:inline-flex;gap:6px;align-items:center}
+.idle-note{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;padding:4px 2px}
+.statusline{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);padding:2px}
+
+/* ---------- composer ---------- */
+.composer-wrap{flex:none;padding:0 24px 14px}
+.cw-inner{max-width:792px;margin-inline:auto;display:flex;flex-direction:column;gap:7px;position:relative}
+.cstrip{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);flex-wrap:wrap;padding-inline:2px}
+.cstrip .ic{color:var(--accent)}
+.composer{border:1px solid var(--border-strong);border-radius:12px;background:var(--surface);padding:8px 10px;display:flex;flex-direction:column;gap:4px}
+.composer:focus-within{border-color:color-mix(in srgb,var(--accent) 65%,var(--border))}
+.c-to{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);min-height:26px}
+.to-btn{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 9px;border-radius:999px;background:var(--surface-3);color:var(--fg);font-weight:500}
+.to-btn:hover{background:var(--border-strong)}
+.to-hint{display:inline-flex;align-items:center;gap:6px}
+.toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--fg)}
+.toggle input{accent-color:var(--accent);margin:0}
+textarea#input{width:100%;resize:none;border:0;outline:0;background:transparent;color:var(--fg-strong);font:14px/1.5 var(--font-ui);min-height:46px;max-height:180px;padding:4px 2px}
+textarea#input::placeholder{color:var(--faint)}
+.c-bar{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.c-bar .chip{height:26px;border-color:transparent;color:var(--muted)}
+.c-bar button.chip:hover{color:var(--fg)}
+.c-bar .chip.on{color:var(--accent)}
+.send{width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;flex:none}
+.send:hover{background:var(--accent-hover)}
+.menu{position:absolute;bottom:calc(100% - 34px);left:0;z-index:20;width:300px;max-width:100%;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:var(--r);box-shadow:var(--shadow);padding:6px;display:flex;flex-direction:column;gap:1px}
+.menu-h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:4px 8px;font-weight:600}
+.menu button{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-md);text-align:left;font-size:13px}
+.menu button:hover,.menu button.on{background:var(--surface-3)}
+.menu button .sp{margin-left:auto}
+
+/* ---------- panel ---------- */
+.p-head{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 6px 0 14px;border-bottom:1px solid var(--border)}
+.p-head h2{font-size:13.5px;font-weight:600;margin:0;color:var(--fg-strong);display:flex;align-items:center;gap:8px}
+.p-head h2 .ic{color:var(--muted)}
+.p-tabs-m{display:none;gap:2px;padding:6px 8px;border-bottom:1px solid var(--border);overflow-x:auto;flex:none}
+.p-tabs-m button{padding:4px 10px;border-radius:999px;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.p-tabs-m button.on{background:var(--accent-soft);color:var(--accent)}
+.p-body{flex:1;overflow:auto;padding:12px 14px 22px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.p-h{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:8px 0 0;display:flex;align-items:center;gap:8px}
+.p-h:first-child{margin-top:0}
+.p-h .spacer+button{text-transform:none;letter-spacing:0;font-weight:500}
+.p-note{font-size:12px;color:var(--faint);margin:-4px 0 0}
+.summary{display:flex;gap:6px;flex-wrap:wrap}
+.arow{padding:9px 10px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface-2);display:flex;flex-direction:column;gap:6px;cursor:pointer;min-width:0}
+.arow:hover{border-color:var(--border-strong)}
+.arow.sel{border-color:color-mix(in srgb,var(--accent) 60%,var(--border))}
+.ar-top{display:flex;align-items:center;gap:7px;min-width:0}
+.ar-top b{color:var(--fg-strong);font-weight:600;font-size:13px}
+.ar-top .sp{margin-left:auto}
+.ar-act{font-size:12.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ar-meta{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--muted);min-width:0}
+.ar-meta .m{flex:1;min-width:60px}
+.ar-meta span{white-space:nowrap;font-variant-numeric:tabular-nums}
+.ar-btns{display:flex;gap:2px;margin-left:auto}
+.ar-btns .ibtn{width:26px;height:26px}
+.meter{position:relative;height:6px;border-radius:3px;background:var(--surface-3)}
+.meter i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--muted)}
+.meter i.hot{background:var(--warn)}
+.meter .tick{position:absolute;top:-3px;bottom:-3px;width:2px;border-radius:1px;background:var(--fg-strong);opacity:.55}
+.trow{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12.5px;padding:5px 2px;border-bottom:1px solid var(--border)}
+.trow:last-child{border-bottom:0}
+.trow .tt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.trow .own{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:12px;white-space:nowrap}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--r-md);padding:2px;gap:2px}
+.seg button{padding:2px 9px;border-radius:5px;font-size:12px;color:var(--muted);display:inline-flex;gap:5px;align-items:center}
+.seg button.on{background:var(--surface-3);color:var(--fg-strong)}
+.graph{border:1px solid var(--border);border-radius:var(--r);background:var(--bg);padding:6px;overflow-x:auto}
+.graph svg{display:block;width:100%;min-width:300px;height:auto}
+.g-edge{fill:none;stroke:var(--border-strong);stroke-width:1.5}
+.g-edge.prop{stroke:var(--accent);stroke-dasharray:4 3}
+.g-node{cursor:pointer}
+.g-node rect{fill:var(--surface-2);stroke:var(--border-strong);stroke-width:1.25}
+.g-node.done rect{stroke:var(--ok)}
+.g-node.in_progress rect{stroke:var(--info);stroke-width:1.75}
+.g-node.proposed rect{stroke:var(--accent);stroke-dasharray:4 3}
+.g-node .gid{fill:var(--muted);font:600 11px var(--font-mono)}
+.g-node .gt{fill:var(--fg);font:500 11.5px var(--font-ui)}
+.g-node .go{fill:var(--muted);font:11px var(--font-ui)}
+.g-node:hover rect{fill:var(--surface-3)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
+.legend span{display:inline-flex;gap:5px;align-items:center}
+.tcol{border:1px solid var(--border);border-radius:var(--r);background:var(--surface-2);padding:2px 10px}
+.tdet{font-size:12px;color:var(--muted);grid-column:3/-1;margin-top:-2px}
+.plan-doc{font-size:13px;line-height:1.6;color:var(--fg);display:flex;flex-direction:column;gap:8px}
+.plan-doc h3{margin:0;font-size:15px;color:var(--fg-strong)}
+.plan-doc h4{margin:4px 0 0;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.plan-doc ul{margin:0;padding-left:18px}
+.plan-doc .file{font-family:var(--font-mono);font-size:11.5px;color:var(--faint)}
+.vers{display:flex;flex-direction:column;gap:6px}
+.ver{display:flex;align-items:center;gap:8px;font-size:12.5px;flex-wrap:wrap}
+.filters{display:flex;gap:4px;flex-wrap:wrap}
+.filters button{padding:3px 10px;border-radius:999px;font-size:12px;color:var(--muted);border:1px solid var(--border)}
+.filters button.on{color:var(--fg-strong);border-color:var(--border-strong);background:var(--surface-3)}
+.mitem{border:1px solid var(--border);border-radius:var(--r);background:var(--surface-2);padding:9px 10px;display:flex;flex-direction:column;gap:5px}
+.mi-h{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.mi-h b{color:var(--fg);font-weight:500}
+.mi-t{font-size:13px;color:var(--fg);overflow-wrap:anywhere}
+.mi-f{font-size:11.5px;color:var(--faint);display:flex;gap:6px;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.stat{border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;background:var(--surface-2);min-width:0}
+.stat .k{font-size:11.5px;color:var(--muted)}
+.stat .v{font-size:17px;font-weight:600;color:var(--fg-strong);font-variant-numeric:tabular-nums;line-height:1.3}
+.stat .s{font-size:11.5px;color:var(--faint)}
+.mrow{display:grid;grid-template-columns:92px minmax(0,1fr) 40px;gap:10px;align-items:center;font-size:12px}
+.mrow .lab{display:flex;align-items:center;gap:6px;color:var(--fg);white-space:nowrap;overflow:hidden}
+.mrow .val{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.segs{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.segs div{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;padding:6px 10px;font-size:12px;border-top:1px solid var(--border);background:var(--surface-2)}
+.segs div:first-child{border-top:0}
+.segs .n{font-family:var(--font-mono);color:var(--fg)}
+.segs .z{color:var(--muted);font-variant-numeric:tabular-nums}
+.tail{font-family:var(--font-mono);font-size:11.5px;line-height:1.75;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);padding:6px 0;overflow-x:auto}
+.tail div{display:grid;grid-template-columns:40px 84px 196px minmax(120px,1fr);gap:8px;padding:0 10px;white-space:nowrap;min-width:max-content}
+.tail div.new{animation:newrow 1.2s ease-out}
+@keyframes newrow{from{background:var(--accent-soft)}to{background:transparent}}
+.tail .s1{color:var(--faint);text-align:right}
+.tail .s2{overflow:hidden;text-overflow:ellipsis}
+.tail .s3{color:var(--fg)}
+.tail .s4{color:var(--muted)}
+.wt{border:1px solid var(--border);border-radius:var(--r);background:var(--surface-2);padding:8px 10px;display:flex;flex-direction:column;gap:4px}
+.wt-h{display:flex;align-items:center;gap:7px;font-size:12.5px}
+.wt-h b{font-family:var(--font-mono);font-weight:500;color:var(--fg-strong);font-size:12px}
+.wt-f{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;font-size:12px;align-items:center}
+.wt-f .p{font-family:var(--font-mono);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wt-f .st{font-family:var(--font-mono);font-weight:700;width:12px}
+
+/* rail */
+.rbtn{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted);position:relative}
+.rbtn:hover{background:var(--surface-3);color:var(--fg)}
+.rbtn.on{color:var(--accent);background:var(--accent-soft)}
+.badge{position:absolute;top:2px;right:2px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--warn);color:var(--bg);font-size:9.5px;font-weight:700;display:grid;place-items:center;line-height:1}
+.rail .sep{width:20px;height:1px;background:var(--border);margin:4px 0}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface-3);color:var(--fg-strong);border:1px solid var(--border-strong);padding:8px 14px;border-radius:999px;font-size:12.5px;box-shadow:var(--shadow);z-index:60;max-width:calc(100vw - 32px)}
+
+/* ---------- responsive ---------- */
+@media (max-width:1180px){
+  .app.panel-open .work{grid-template-columns:minmax(0,1fr) 44px}
+  .panel{position:fixed;top:48px;right:44px;bottom:0;width:min(380px,calc(100vw - 60px));z-index:30;box-shadow:var(--shadow)}
+}
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;width:min(300px,86vw);z-index:45;transform:translateX(-102%);transition:transform .2s ease;box-shadow:var(--shadow)}
+  .app.side-open .sidebar{transform:none}
+  .work,.app.panel-open .work{grid-template-columns:minmax(0,1fr)}
+  .rail{display:none}
+  .panel{right:0;left:0;width:auto;top:48px}
+  .p-tabs-m{display:flex}
+  .mobile-only{display:inline-grid}
+  .hide-m{display:none!important}
+  .thread{padding:16px 16px 12px}
+  .composer-wrap{padding:0 16px 12px}
+  .app.side-open .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40}
+  .tail div{grid-template-columns:40px 84px 180px minmax(120px,1fr)}
+}
+@media (max-width:560px){
+  .tb-right .chip.ctxchip,.tb-right .chip.byok{display:none}
+  .ptask{grid-template-columns:auto auto minmax(0,1fr);}
+  .ptask .pt-dep,.ptask .pt-own{grid-column:3}
+  .stats{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){
+  .shine{animation:none;background:none;color:var(--fg)}
+  .sg.run,.sg.wait,.caret,.tail div.new,.card.flash{animation:none}
+  .sidebar{transition:none}
+}
+
+/* ---------- additions: rotation, countdown, queue strip, gen chip ---------- */
+.gen{font-family:var(--font-mono);font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:var(--r-sm);padding:0 5px;line-height:17px;white-space:nowrap}
+.countdown{font-size:12px;color:var(--warn);font-variant-numeric:tabular-nums;display:inline-flex;gap:6px;align-items:center}
+.qstrip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--fg);border:1px solid var(--border-strong);border-radius:var(--r);padding:5px 8px;background:var(--surface)}
+.qstrip .qt{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1 1 160px}
+.segs .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-grid{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;margin:6px 0 0;font-size:12px}
+.detail-grid dt{color:var(--faint)}
+.detail-grid dd{margin:0;color:var(--fg);font-family:var(--font-mono);overflow-wrap:anywhere}
+
+/* ---------- wiring overlay (mockup only) ---------- */
+.app.wiring [data-w]{outline:1px dashed color-mix(in srgb,var(--info) 65%,transparent);outline-offset:1px;cursor:help}
+.app.wiring [data-w]:not(.badge):not(.sg){position:relative}
+.app.wiring [data-w]::after{content:attr(data-w);position:absolute;top:1px;right:1px;z-index:6;font:600 9.5px/14px var(--font-mono);padding:0 4px;border-radius:4px;background:var(--wb,var(--info));color:#fff;pointer-events:none;letter-spacing:0;text-transform:none;font-style:normal}
+.app.wiring [data-ws="SV"]{--wb:#3f8a2e}
+.app.wiring [data-ws="INF"]{--wb:#b4561f}
+.app.wiring [data-ws="UNV"]{--wb:#9a6408}
+.app.wiring [data-ws="CLIENT"],.app.wiring [data-ws="SAMPLE"]{--wb:#6c6259}
+.wbar{display:none;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--fg);padding:6px 14px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+.app.wiring .wbar{display:flex}
+.wbar i{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.wpop{position:fixed;right:60px;bottom:16px;z-index:70;width:min(480px,calc(100vw - 32px));max-height:72vh;overflow:auto;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.wp-h{display:flex;align-items:center;gap:8px}
+.wp-h b{color:var(--fg-strong);font-size:14px}
+.wid{font:700 12px var(--font-mono);color:#fff;background:var(--info);border-radius:5px;padding:1px 6px}
+.wst{font:600 11px var(--font-mono);border-radius:5px;padding:1px 6px;border:1px solid var(--border-strong);color:var(--fg)}
+.wp-k{font-size:12px;color:var(--muted)}
+.wp-sec{display:flex;flex-direction:column;gap:2px}
+.wp-sec>span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.wp-sec div{color:var(--fg);line-height:1.55;overflow-wrap:anywhere}
+.wp-sec code{font-size:12px;color:var(--code);background:var(--bg);padding:0 4px;border-radius:4px}
+.wp-ev{display:flex;gap:4px;flex-wrap:wrap}
+.wp-ev code{font-size:11.5px}
+.wp-refs{display:flex;flex-direction:column;gap:2px;font-size:12px}
+.wp-refs a{color:var(--link);font-family:var(--font-mono);font-size:11.5px;overflow-wrap:anywhere}
+.wlink{font:600 12px var(--font-mono);color:var(--info);text-decoration:underline;text-underline-offset:2px}
+@media (max-width:860px){ .wpop{right:16px;left:16px;width:auto} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-branch" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
+    <symbol id="i-tasks" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-plan" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M8 13h8M8 17h5M8 9h2"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+    <symbol id="i-term" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"/></symbol>
+    <symbol id="i-pluscircle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1Z"/></symbol>
+    <symbol id="i-gate" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></symbol>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M7 7h10v10M7 17 17 7"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.8 2.2a2 2 0 0 0-1.6 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8Z"/><path d="m22 17.6-9.2 4.2a2 2 0 0 1-1.6 0L2 17.6M22 12.6l-9.2 4.2a2 2 0 0 1-1.6 0L2 12.6"/></symbol>
+    <symbol id="i-graph" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 7.5v9M8.2 6.2l7.6 4.6M8.2 17.8l7.6-4.6"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8L20 10.5l-6.1 1.7L12 18l-1.9-5.8L4 10.5l6.1-1.7Z"/></symbol>
+    <symbol id="i-reply" viewBox="0 0 24 24"><path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></symbol>
+    <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+  </defs>
+</svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0Z"/><path d="M12 17v5"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></symbol>
+  </defs>
+</svg>
+
+<div class="app panel-open" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="Sessions"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <div class="wbar" id="wbar">
+      <b>Wiring overlay</b>
+      <span><i style="background:#3f8a2e"></i>SDK-verified source</span>
+      <span><i style="background:#b4561f"></i>harness design (this spec)</span>
+      <span><i style="background:#9a6408"></i>needs a probe</span>
+      <span><i style="background:#6c6259"></i>client-only or sample data</span>
+      <span class="muted">Click any labelled element. Ids match the report's UI wiring tables.</span>
+    </div>
+    <div class="work">
+      <section class="chat" aria-label="Conversation">
+        <div class="scroll" id="scroll"><div class="thread" id="thread"></div></div>
+        <div class="composer-wrap">
+          <div class="cw-inner">
+            <div class="cstrip" id="cstrip"></div>
+            <div id="qstrip"></div>
+            <div class="composer">
+              <div class="c-to" id="cto"></div>
+              <div id="inwrap" data-w="K6" data-ws="SV"><label for="input" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Message</label><textarea id="input" rows="2"></textarea></div>
+              <div class="c-bar" id="cbar"></div>
+            </div>
+            <div class="menu" id="tomenu" hidden></div>
+          </div>
+        </div>
+      </section>
+      <aside class="panel" id="panel" aria-label="Context panel"></aside>
+      <nav class="rail" id="rail" aria-label="Panels"></nav>
+    </div>
+  </div>
+  <div class="scrim" id="scrim" data-act="close-overlays"></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="wpop" id="wpop" hidden role="dialog" aria-label="Wiring details"></div>
+
+<script>
+/*WIRING:BEGIN*/
+const WIRING = {"S1":{"id":"S1","surface":"Sidebar","element":"Run list (recent / per repository)","kind":"Harness","status":"INF","shows":"One row per orchestration run, newest first, grouped under Recent and under the repository.","source":"Harness run index `GET /api/runs` → `{run_id, title, repo_root, updated_seq, live_agents}`. `title` = title of the approved plan, else the first user message cut to 60 chars.","updates":["plan_decided","user_message","agent_status"],"action":"Click opens the run (client navigation). Only the first run in the mockup has data; the others are sample rows (X1).","refs":[]},"S2":{"id":"S2","surface":"Sidebar","element":"Live-agent count on the run row (\"3 live\")","kind":"Harness","status":"INF","shows":"Number of agents that are not finished.","source":"Count of `AgentRecord` whose `status` is not `completed | failed | cancelled | crashed`.","updates":["agent_spawned","agent_status"],"action":"","refs":[]},"S3":{"id":"S3","surface":"Sidebar","element":"Agent tree under the run","kind":"Harness","status":"INF","shows":"Every agent of the run with a status glyph and its first task id (or 'lead').","source":"`AgentRecord{id, parent, depth, tasks, status}` ordered by depth then spawn seq. Glyph = display status D1. Right label = lowest `TaskId` in `tasks`, or 'lead' for the orchestrator.","updates":["agent_spawned","agent_status","task_changed"],"action":"Click focuses that agent's transcript (client).","refs":[]},"S4":{"id":"S4","surface":"Sidebar","element":"Repository group header","kind":"Git","status":"INF","shows":"Repository name.","source":"Basename of `git rev-parse --show-toplevel` for the run's `repo_root`.","updates":[],"action":"","refs":[]},"S5":{"id":"S5","surface":"Sidebar","element":"Agent worktrees list","kind":"Harness","status":"INF","shows":"Branch of each writing agent's worktree, coloured by agent.","source":"`AgentRecord.workspace = Worktree{path, branch, base_commit}`; reconciled against `git worktree list --porcelain` at harness start.","updates":["agent_spawned","agent_status"],"action":"Click opens the Worktrees tab (G1, G2).","refs":[]},"S6":{"id":"S6","surface":"Sidebar","element":"Copilot CLI status footer","kind":"SDK + Harness","status":"SV+INF","shows":"Whether the single Copilot CLI child process is up and how many agent sessions it hosts.","source":"Process up = `Client::pid()` returns `Some` (SV); exits are observed on `Client::subscribe_lifecycle()` (SV); liveness is `Client::ping` every 30 s (SV). Session count = agents whose `CopilotBinding` is live (harness). RSS is read by the harness supervisor from the OS for that pid; session workspace sizes come from `rpc().sessions().get_sizes()` (SV). At 3 GiB RSS the footer shows the memory step in progress: closing idle sessions, then 'recycle pending' (section 4.4).","updates":["health","agent_resumed"],"action":"","refs":[{"label":"Client::pid","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L3053"},{"label":"Client::subscribe_lifecycle","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L3328"},{"label":"sessions.getSizes","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L5825"},{"label":"Client::ping","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L2831"}]},"S7":{"id":"S7","surface":"Sidebar","element":"New session, history, search buttons","kind":"Client","status":"INF","shows":"Placeholders in the mockup.","source":"New session = harness command `create_run`. History and search are client views over S1.","updates":[],"action":"","refs":[]},"H1":{"id":"H1","surface":"Header","element":"Title and breadcrumb","kind":"Harness","status":"INF","shows":"Run title; when an agent is focused, the parent chain ending in that agent.","source":"Run title (S1). Breadcrumb = `AgentRecord.parent` chain of the focused agent.","updates":["plan_decided","agent_spawned"],"action":"Clicking a crumb focuses that agent (client).","refs":[]},"H2":{"id":"H2","surface":"Header","element":"Subtitle in the lead view","kind":"Git + SDK","status":"SV+INF","shows":"Repository, checked-out branch of the main checkout, short id of the lead's Copilot session.","source":"Branch = `git rev-parse --abbrev-ref HEAD` in `repo_root`. Session id = `Session::id()` of the orchestrator's current generation (first 8 chars).","updates":["agent_rotated"],"action":"","refs":[{"label":"Session::id","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L628"}]},"H3":{"id":"H3","surface":"Header","element":"Subtitle in an agent view","kind":"Harness","status":"INF","shows":"Agent kind, its task id and title, its worktree branch.","source":"`AgentRecord.kind`, board `Task{id, title}` for its first task, `Workspace` branch or 'main (read-only)'.","updates":["agent_status","task_changed"],"action":"","refs":[]},"H4":{"id":"H4","surface":"Header","element":"'N active' chip","kind":"Harness","status":"INF","shows":"Agents currently doing or blocked on something.","source":"Count of agents whose display status D1 is `running | needs_permission | needs_answer | waiting_on_agents`.","updates":["agent_status","permission","mail_state"],"action":"Opens the Agents tab.","refs":[]},"H5":{"id":"H5","surface":"Header","element":"'N need you' chip","kind":"Harness","status":"INF","shows":"Items that wait on the user.","source":"D8.","updates":["mail_created","mail_state","plan_version_created","plan_decided","permission"],"action":"Focuses the lead transcript and scrolls to the first open card (C11, C12, C13).","refs":[]},"H6":{"id":"H6","surface":"Header","element":"Context ring of the focused agent","kind":"SDK","status":"SV","shows":"Context window used by the focused agent's current Copilot session.","source":"D5 = `current_tokens / token_limit` of the latest `session.usage_info`. Turns warning colour at or above the agent's compaction threshold D11.","updates":["usage","agent_rotated"],"action":"","refs":[{"label":"SessionUsageInfoData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449"},{"label":"InfiniteSessionConfig","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012"}]},"H7":{"id":"H7","surface":"Header","element":"BYOK chip","kind":"Config + SDK","status":"SV","shows":"Name of the provider profile the focused agent's session uses.","source":"Harness config profile → `SessionConfig.provider: ProviderConfig{provider_type, base_url, api_key, wire_api, …}` (SV). Each model call reports `assistant.usage.is_byok` (SV), which the harness can assert. Keys are never sent to the UI.","updates":["agent_spawned","agent_rotated"],"action":"","refs":[{"label":"ProviderConfig","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1295-L1317"},{"label":"SessionConfig.provider","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2286"},{"label":"AssistantUsageData.is_byok","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4102"}]},"H8":{"id":"H8","surface":"Header","element":"Theme toggle","kind":"Client","status":"CLIENT","shows":"Light or dark theme.","source":"Client preference only.","updates":[],"action":"","refs":[]},"H9":{"id":"H9","surface":"Header","element":"'Wiring' toggle","kind":"Client","status":"CLIENT","shows":"Mockup-only overlay that labels every element with its wiring id.","source":"Exists only in this mockup; not part of the product.","updates":[],"action":"","refs":[]},"C1":{"id":"C1","surface":"Chat","element":"'N earlier events · load older'","kind":"Harness","status":"INF","shows":"How many older events of the focused agent are not loaded, and a control to page them in.","source":"`GET /api/runs/{run}/events?agent={id}&before_seq={first_loaded}&limit=200`, served from the harness log via its sparse index. Never served from Copilot `Session::get_events()`, which loads a whole timeline into memory.","updates":[],"action":"Loads one page and prepends it (client keeps at most E3 events).","refs":[{"label":"Session::get_events (not used)","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L1084"}]},"C2":{"id":"C2","surface":"Chat","element":"User message bubble","kind":"Harness + SDK","status":"SV+INF","shows":"Text the user sent to the focused agent, with time.","source":"Harness `user_message` event when the UI command is accepted. The Copilot echo `user.message{content, delivery, message_id}` (SV) confirms it entered the session.","updates":["user_message","copilot:user.message"],"action":"","refs":[{"label":"UserMessageData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3143-L3184"}]},"C3":{"id":"C3","surface":"Chat","element":"Assistant message header","kind":"Harness + SDK","status":"SV","shows":"Agent name, role pill, model.","source":"Name and role from `AgentRecord`. Model from `assistant.message.model` or `assistant.usage.model` (SV).","updates":["copilot:assistant.message","copilot:assistant.usage"],"action":"","refs":[{"label":"AssistantMessageData.model","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3820"},{"label":"AssistantUsageData.model","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4110"}]},"C4":{"id":"C4","surface":"Chat","element":"'Thinking' row","kind":"SDK","status":"SV","shows":"First line of the model's reasoning for the turn, expandable.","source":"`assistant.reasoning{reasoning_id, content}`; streamed as `assistant.reasoning_delta{reasoning_id, delta_content}`. Present only if the BYOK provider and model emit reasoning (provider-dependent).","updates":["copilot:assistant.reasoning","delta_batch"],"action":"","refs":[{"label":"AssistantReasoningData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3508-L3515"},{"label":"AssistantReasoningDeltaData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3521-L3525"}]},"C5":{"id":"C5","surface":"Chat","element":"Activity group (tool rows)","kind":"SDK + Harness","status":"SV+INF","shows":"One row per tool call: icon, verb, argument summary, duration.","source":"Row opens on `tool.execution_start{tool_call_id, tool_name, tool_title, arguments, shell_tool_info.display_command}` and closes on `tool.execution_complete{tool_call_id, success, error, file_edits}`. Verb = harness table keyed by `tool_name`; built-in names are read at runtime from `rpc().tools().get_builtin_descriptors()` (method SV, names UNV, probe V8). Argument = `tool_title`, else `display_command`, else first path in `arguments`. Duration = difference of the two envelopes' `SessionEvent.timestamp`. '+N −M' on edit rows comes from D9.","updates":["tool_started","tool_finished"],"action":"","refs":[{"label":"ToolExecutionStartData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4604-L4662"},{"label":"ToolExecutionCompleteData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L5202-L5281"},{"label":"SessionEvent.timestamp","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L6124-L6146"},{"label":"tools.get_builtin_descriptors","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17586"}]},"C6":{"id":"C6","surface":"Chat","element":"Assistant text","kind":"SDK","status":"SV","shows":"The assistant's reply, rendered as markdown.","source":"Final text = `assistant.message{message_id, content}`. While streaming, `assistant.message_delta{message_id, delta_content}` is merged by the harness into ephemeral `delta_batch` frames (flush every 50 ms or 4 KiB).","updates":["copilot:assistant.message","delta_batch"],"action":"","refs":[{"label":"AssistantMessageData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3775-L3867"},{"label":"AssistantMessageDeltaData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3884-L3893"}]},"C7":{"id":"C7","surface":"Chat","element":"Turn footer (duration · tokens)","kind":"SDK + Harness","status":"SV+INF","shows":"Wall time of the turn, tokens it used, and the share of input served from the provider's prompt cache.","source":"Duration = `assistant.turn_end.timestamp − assistant.turn_start.timestamp` joined on `turn_id` (SV). Tokens = Σ `input_tokens + output_tokens` of the `assistant.usage` events received between them; cached share = Σ `cache_read_tokens` / Σ `input_tokens` (fields SV, join INF; whether `input_tokens` already includes cache reads is probe V17).","updates":["copilot:assistant.turn_end","copilot:assistant.usage"],"action":"","refs":[{"label":"AssistantUsageData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4009-L4123"},{"label":"AssistantTurnStartData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3195-L3206"},{"label":"AssistantTurnEndData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3899-L3907"},{"label":"AssistantUsageData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4009-L4211"}]},"C8":{"id":"C8","surface":"Chat","element":"Inline agent card (spawned subagent or teammate)","kind":"Harness + SDK","status":"SV+INF","shows":"Kind, name, task, status, current activity, step progress, branch, context %, elapsed time, tokens, model; buttons Open, Message, Stop.","source":"Anchored where the parent called `spawn_agent`: `ToolInvocation.tool_call_id` (SV) is stored as `AgentRecord.spawned_by_call`. Fields: status D1, activity D2, step D3, context D5, elapsed D6, tokens D7, task from the board, branch from `Workspace`.","updates":["agent_spawned","agent_status","task_changed","scratch_todos","usage","copilot:assistant.intent","agent_resumed"],"action":"Open → focus the agent (client). Message → sets composer target (K3). Stop (two-step) → harness `agent_stop` → `Session::abort()`, then `rpc().sessions().close(..)` once `session.idle` arrives; owned tasks return to `pending`; agent becomes `cancelled`.","refs":[{"label":"ToolInvocation","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L6189-L6195"},{"label":"Session::abort","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L1109"},{"label":"sessions.close","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L5918"}]},"C9":{"id":"C9","surface":"Chat","element":"Finished subagent result","kind":"Harness","status":"INF","shows":"Short result of a finished agent; 'Full report' expands it.","source":"`TaskResult.summary` (≤ 2 KiB) parsed from the child's final `assistant.message` using the fixed headings SUMMARY / EVIDENCE / CHANGES / RISKS / BLOCKERS; the full text is a blob.","updates":["agent_status","task_changed"],"action":"'Full report' fetches `GET /api/blobs/{sha}`.","refs":[]},"C10":{"id":"C10","surface":"Chat","element":"Approved plan card","kind":"Harness","status":"INF","shows":"Plan version, task rows (id, title, owner, dependencies), who approved and when.","source":"`PlanVersion{version, markdown, ops, state: approved, decided}` created when the orchestrator called `submit_plan`; rows from its `TaskSpec`s after ids were assigned.","updates":["plan_version_created","plan_decided"],"action":"Header toggles the row list (client).","refs":[]},"C11":{"id":"C11","surface":"Chat","element":"Re-plan card awaiting approval","kind":"Harness + SDK","status":"SV+INF","shows":"Proposed version, reason, '+' rows for added tasks, rows whose dependencies change; Approve / Edit plan / Reject.","source":"`PlanVersion` N+1 from the orchestrator's `propose_plan_change` (state `awaiting_approval`). '+' rows = `Add` ops; changed dependencies = `Rewire` ops.","updates":["plan_version_created","plan_decided"],"action":"Approve → `plan_decide{version, approve}` → board applies ops (`task_created`, `task_changed`) and a `Notify{PlanApproved}` mail reaches the orchestrator via `Session::send(MessageOptions{mode: Enqueue})`. Edit → Plan tab (P1). Reject → `plan_decided{rejected{feedback}}` plus `Notify{PlanRejected}`.","refs":[{"label":"DeliveryMode","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L5858-L5862"},{"label":"Session::send","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L842"}]},"C12":{"id":"C12","surface":"Chat","element":"Ask card ('Needs your answer')","kind":"Harness + SDK","status":"SV+INF","shows":"A child's question that reached the user, with choices and a free-text reply.","source":"An `Ask` mail. It originates from the harness `ask` tool, or from Copilot's built-in ask-user, which calls the harness `UserInputHandler` with `user_input.requested{question, choices, allow_freeform}` (SV). It reaches the user when the parent calls `ask{forward: <mail id>}`, or when the parent is idle or `InputRequired` and has not answered within 120 s of its next wake.","updates":["mail_created","mail_state","agent_status"],"action":"Choice or reply → `answer_ask{mail_id, text}` → `Answer` mail delivered to the asker with `Session::send(… mode: Enqueue)`. If the ask came through `UserInputHandler` and is answered within 60 s, the pending handler returns `UserInputResponse{answer, was_freeform}` (SV) instead; after 60 s the handler has already returned \"no answer yet\" and the answer goes by `Enqueue`.","refs":[{"label":"UserInputRequestedData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L7638-L7651"},{"label":"UserInputResponse","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/handler.rs#L149"},{"label":"UserInputHandler","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/handler.rs#L303"}]},"C13":{"id":"C13","surface":"Chat","element":"Permission card","kind":"SDK + Harness","status":"SV+UNV","shows":"Which agent wants to run what, why, in which worktree; Deny / Always allow in this worktree / Allow once; a countdown to auto-deny.","source":"Created when the SDK calls `PermissionHandler::handle(session_id, request_id, PermissionRequestData{kind, tool_call_id, extra})` (SV). Command text, intention and paths are parsed from `extra` into the generated `PermissionRequestShell{full_command_text, intention, possible_paths, can_offer_session_approval}` (field names SV; the SDK documents that `extra` varies by CLI version, so parsing is probe V6). Worktree = the agent's `Workspace`.","updates":["permission"],"action":"Allow once → `PermissionResult::approve_once()` (SV). Always allow in worktree → `PermissionDecision::ApproveForLocation{location_key, …}` (variant SV, `location_key` meaning UNV, probe V11) or, as fallback, a harness rule plus `approve_once`. Deny → `PermissionResult::reject(feedback)` (SV). Decision 10: with no click after 90 s the handler returns `reject(\"waiting for user approval; you will be told when to retry\")`; the card switches to 'Approve & retry', which stores the rule and sends the agent a `Directive` via `Enqueue`.","refs":[{"label":"PermissionHandler","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/handler.rs#L204-L211"},{"label":"PermissionResult","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/handler.rs#L54-L131"},{"label":"PermissionRequestData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L6644"},{"label":"PermissionRequestShell","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L6057-L6082"},{"label":"PermissionDecision variants","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L48502-L48508"},{"label":"PermissionCompletedData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L7311-L7334"}]},"C14":{"id":"C14","surface":"Chat","element":"Inline mail row","kind":"Harness","status":"INF","shows":"A message between two agents: sender, recipient, kind, time, delivery state.","source":"`MailMessage{from, to, kind, summary, state}`. Shown in the sender's and recipient's transcripts, and in the lead transcript when both parties are in its subtree.","updates":["mail_created","mail_state"],"action":"","refs":[]},"C15":{"id":"C15","surface":"Chat","element":"Steer bubble with delivery line","kind":"Harness + SDK","status":"SV+UNV","shows":"A user message to a non-lead agent and how it was delivered.","source":"`Steer` mail. Delivery line = D10 over `DeliveryState`: `held` → `submitted` (when `Session::send` returns its message id, SV) → `in_context{delivery}` when `user.message.delivery` is `idle | steering | queued` (SV). Matching the send's id to `user.message.message_id` is probe V3.","updates":["mail_created","mail_state","copilot:user.message"],"action":"","refs":[{"label":"UserMessageDelivery","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L10053-L10066"},{"label":"UserMessageData.message_id","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3163"}]},"C16":{"id":"C16","surface":"Chat","element":"Compaction divider","kind":"SDK + Harness","status":"SV+INF","shows":"Context compaction: utilisation when it started, tokens before and after, messages removed, and what the summarizer call cost (tokens in, cached, out, duration). A failed compaction shows its error and the failure count toward RT1.","source":"`session.compaction_start{trigger, current_tokens, token_limit}` and `session.compaction_complete{success, error, pre_compaction_tokens, post_compaction_tokens, messages_removed, summary_content, compaction_tokens_used{input_tokens, output_tokens, cache_read_tokens, duration}}` (SV), normalized to the `Compaction` EventKind. 'k of 2 failed' = `CopilotBinding.failed_compactions_in_a_row` against RT1 (harness). 'View summary' opens the `summary_content` blob.","updates":["compaction","usage"],"action":"'View summary' fetches the `summary_content` blob.","refs":[{"label":"SessionCompactionStartData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2466-L2487"},{"label":"SessionCompactionCompleteData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2579-L2652"},{"label":"CompactionCompleteCompactionTokensUsed","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2527-L2562"},{"label":"CompactionTrigger","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L9667-L9686"}]},"C17":{"id":"C17","surface":"Chat","element":"Session rotation divider","kind":"Harness","status":"INF","shows":"The agent moved to a new Copilot session (generation) after a rescue trigger, which trigger, and the handoff size in tokens.","source":"`agent_rotated{from_generation, to_session, trigger: RT1 | RT2 | RT3 | RT4, handoff, handoff_tokens}` (section 4.3). Handoff ≤ 8 KiB = last `compaction_complete.summary_content` (SV field, reused at no extra cost) + owned tasks, mail summaries, private checklist, last assistant message, `git diff --stat`, edited paths. The old session is closed with `rpc().sessions().close` (SV).","updates":["agent_rotated"],"action":"'View handoff' fetches the blob.","refs":[{"label":"summary_content","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2637"},{"label":"sessions.close","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L5918"}]},"C18":{"id":"C18","surface":"Chat","element":"Task brief (top of an agent view)","kind":"Harness + SDK","status":"SV+INF","shows":"The instructions the parent gave when spawning, plus what context, tools and workspace the agent got.","source":"The spawn `Directive` mail (= `spawn_agent.prompt`). Tools line = the agent's `SessionConfig.available_tools` / `excluded_tools` (SV). Workspace = `SessionConfig.working_directory` (SV).","updates":["agent_spawned","mail_created"],"action":"","refs":[{"label":"SessionConfig.available_tools / excluded_tools","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2122-L2124"},{"label":"SessionConfig.working_directory","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2331"}]},"C19":{"id":"C19","surface":"Chat","element":"Private checklist","kind":"Harness","status":"INF","shows":"The agent's own step list; not on the task board.","source":"Harness tool `todo_write` (whole-list replace; one writer) → `AgentRecord.scratch`.","updates":["scratch_todos"],"action":"","refs":[]},"C20":{"id":"C20","surface":"Chat","element":"Diff card","kind":"SDK + Harness","status":"SV+INF","shows":"Lines changed by one edit, with file name and +/− counts.","source":"Triggered by `tool.execution_complete.file_edits[{kind, path}]` (SV). The event carries no line counts, so D9 computes the diff.","updates":["tool_finished"],"action":"","refs":[{"label":"ToolExecutionCompleteFileEdit","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4736-L4740"},{"label":"ToolExecutionCompleteData.file_edits","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L5215"}]},"C21":{"id":"C21","surface":"Chat","element":"'Asked orchestrator' card (agent view)","kind":"Harness","status":"INF","shows":"The agent's own outstanding question and whether it was forwarded or answered.","source":"The agent's `Ask` mail and its `DeliveryState` / linked `Answer`.","updates":["mail_created","mail_state"],"action":"","refs":[]},"C22":{"id":"C22","surface":"Chat","element":"Streaming text and caret","kind":"SDK","status":"SV","shows":"Text arriving live.","source":"Ephemeral `delta_batch` built from `assistant.message_delta.delta_content` (SV). The caret disappears when `assistant.message` with the same `message_id` arrives. Deltas never enter the durable log.","updates":["delta_batch","copilot:assistant.message"],"action":"","refs":[{"label":"AssistantMessageDeltaData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3884-L3893"}]},"C23":{"id":"C23","surface":"Chat","element":"'Result returned to parent' divider","kind":"Harness","status":"INF","shows":"The agent finished and its result went to the parent.","source":"`agent_status{completed}` and the `Notify{AgentCompleted}` mail to the parent.","updates":["agent_status","mail_created"],"action":"","refs":[]},"C24":{"id":"C24","surface":"Chat","element":"Idle note","kind":"Harness","status":"INF","shows":"Why an agent is idle.","source":"D1 = idle plus the board: owned tasks that are not ready and the tasks they wait on.","updates":["agent_status","task_changed"],"action":"","refs":[]},"C25":{"id":"C25","surface":"Chat","element":"Status line under the transcript","kind":"Harness","status":"INF","shows":"What the focused agent is doing right now.","source":"D1 for the focused agent. In the lead view: children that are running or waiting on the user, plus D8.","updates":["agent_status","permission","mail_state"],"action":"","refs":[]},"K1":{"id":"K1","surface":"Composer","element":"Changes strip (worktrees · files · +/−)","kind":"Git","status":"INF","shows":"Total uncommitted and committed change across writer worktrees since their base commit.","source":"For each writer worktree: `git -C <wt> diff --numstat <base_commit>` plus `git status --porcelain` (untracked files count as added). Recomputed, debounced 1 s, after any `tool.execution_complete` that has non-empty `file_edits` (SV) or comes from a shell tool (shell writes are not listed in `file_edits`, probe V15).","updates":["tool_finished"],"action":"Click opens the Worktrees tab.","refs":[{"label":"ToolExecutionCompleteData.file_edits","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L5215"}]},"K2":{"id":"K2","surface":"Composer","element":"Queued messages strip","kind":"Harness + SDK","status":"SV+UNV","shows":"Messages the user sent that are queued in an agent's Copilot session; Send now / Retract.","source":"Mail in state `submitted` not yet seen as `user.message`. On every `pending_messages.modified` the harness calls `rpc().queue().pending_items()` and emits `mail_state` envelopes; queue items carry the send's `message_id` (both SV; the queue namespace is experimental).","updates":["mail_state"],"action":"Send now → `rpc().queue().send_now({id})` with the queue item id from `pending_items()` (SV). Retract → `rpc().queue().withdraw_message{message_id, expected_prompt}` (SV), using the send id and the prompt stored in `DeliveryState::Submitted`.","refs":[{"label":"queue.pending_items","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L15511"},{"label":"queue.send_now","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L15825"},{"label":"queue.withdraw_message","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L15697"},{"label":"queue.remove_at","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L15631"},{"label":"QueueWithdrawMessageRequest","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L22160-L22164"}]},"K3":{"id":"K3","surface":"Composer","element":"'To' target picker","kind":"Client","status":"CLIENT","shows":"Which agent the message goes to, with each agent's status.","source":"Client list over `AgentRecord`s with D1. Typing `@agent-id ` at the start of the message also sets the target.","updates":["agent_status"],"action":"","refs":[]},"K4":{"id":"K4","surface":"Composer","element":"Target hint text","kind":"Client","status":"CLIENT","shows":"How the message will land given the target's state.","source":"From D1 of the target and the K5 toggle: idle → 'starts a new turn'; running + steer → 'steers the current turn'; running + queue → 'queued for the next turn'.","updates":["agent_status"],"action":"","refs":[]},"K5":{"id":"K5","surface":"Composer","element":"'Steer now' toggle","kind":"SDK","status":"SV","shows":"Whether a message to a running agent interrupts its current turn.","source":"On → `MessageOptions.mode = Some(DeliveryMode::Immediate)`; the echo arrives as `user.message.delivery = steering`. Off → `Enqueue`, echo `queued`. Default on for user → running agent. To an idle agent the mode does not matter; the echo is `idle`.","updates":[],"action":"","refs":[{"label":"DeliveryMode","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L5858-L5862"},{"label":"MessageOptions.mode","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L5927"}]},"K6":{"id":"K6","surface":"Composer","element":"Message input","kind":"SDK","status":"SV","shows":"Text to send.","source":"Becomes `MessageOptions.prompt`. Mail from agents is wrapped in a `<mail …>` envelope and `display_prompt` carries the human-readable text.","updates":[],"action":"Enter sends (K11).","refs":[{"label":"MessageOptions","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L5913-L5953"}]},"K7":{"id":"K7","surface":"Composer","element":"Attach button","kind":"SDK","status":"SV","shows":"Attach files or images.","source":"`MessageOptions.attachments`.","updates":[],"action":"","refs":[{"label":"MessageOptions.attachments","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L5933"}]},"K8":{"id":"K8","surface":"Composer","element":"Plan gate indicator","kind":"Config + SDK","status":"SV+INF","shows":"Plans and re-plans wait for user approval (always on; decision 6).","source":"The orchestrator starts in plan mode with `MessageOptions.agent_mode = Plan` or `rpc().mode().set(…)` (SV) and gets only read-only tools plus `submit_plan`.","updates":[],"action":"","refs":[{"label":"AgentMode","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L5872-L5880"},{"label":"mode.set","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L13215"}]},"K9":{"id":"K9","surface":"Composer","element":"Model chip","kind":"SDK","status":"SV","shows":"Model of the target agent's session.","source":"`SessionConfig.model` at creation (required with BYOK per docs); changed with `Session::set_model`; observed as `session.model_change{new_model}`.","updates":["copilot:session.model_change"],"action":"","refs":[{"label":"SessionConfig.model","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2073"},{"label":"Session::set_model","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L1122"},{"label":"SessionModelChangeData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L1591-L1647"}]},"K10":{"id":"K10","surface":"Composer","element":"Role pill","kind":"Harness","status":"INF","shows":"lead / teammate / subagent.","source":"`AgentRecord.kind`.","updates":[],"action":"","refs":[]},"K11":{"id":"K11","surface":"Composer","element":"Send button","kind":"Harness + SDK","status":"SV+INF","shows":"Sends the message.","source":"To the orchestrator → command `user_message` → `Session::send` (SV). To any other agent → command `send_mail{to, kind: steer, urgency}` → mailbox → `Session::send`. Acknowledged only after the log write commits.","updates":["user_message","mail_created"],"action":"","refs":[{"label":"Session::send","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L842"}]},"A1":{"id":"A1","surface":"Agents tab","element":"Status summary chips","kind":"Harness","status":"INF","shows":"How many agents are running, blocked on the user, idle.","source":"Counts over D1.","updates":["agent_status","permission","mail_state"],"action":"","refs":[]},"A2":{"id":"A2","surface":"Agents tab","element":"Agent row","kind":"Harness + SDK","status":"SV+INF","shows":"Name, task, status, activity, context meter, model, generation; Message and Stop.","source":"`AgentRecord` + D1, D2, D5. Meter ticks sit at D11 (the agent's `background_compaction_threshold`) and at `buffer_exhaustion_threshold` 0.95 (fields SV). Generation = `CopilotBinding.generation`; it changes only on the rescue triggers RT1–RT4 of section 4.3.","updates":["agent_status","usage","agent_rotated","copilot:assistant.intent","agent_resumed"],"action":"Row focuses the agent. Message → K3. Stop → as C8.","refs":[{"label":"InfiniteSessionConfig","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012"}]},"A3":{"id":"A3","surface":"Agents tab","element":"Team / subagent grouping","kind":"Harness","status":"INF","shows":"Long-lived teammates versus fire-and-forget subagents.","source":"`AgentRecord.kind`: `orchestrator` and `teammate` versus `quick`.","updates":["agent_spawned"],"action":"","refs":[]},"A4":{"id":"A4","surface":"Agents tab","element":"Compact task list","kind":"Harness","status":"INF","shows":"All tasks with status glyph and owner.","source":"Board projection with D4.","updates":["task_created","task_changed"],"action":"'Open board' switches tab.","refs":[]},"T1":{"id":"T1","surface":"Task board tab","element":"Board header","kind":"Harness","status":"INF","shows":"Approved plan version and done / total.","source":"Latest approved `PlanVersion.version`; counts over tasks not in `proposed`.","updates":["plan_decided","task_changed"],"action":"Graph / List switch (client).","refs":[]},"T2":{"id":"T2","surface":"Task board tab","element":"Dependency graph","kind":"Client","status":"CLIENT","shows":"Tasks as nodes, dependencies as edges, proposed tasks dashed.","source":"Client layout over the board: layer = longest path along `blocked_by`; edges = `blocked_by`; node label = D4.","updates":["task_created","task_changed"],"action":"Clicking a node switches to List.","refs":[]},"T3":{"id":"T3","surface":"Task board tab","element":"Task list","kind":"Harness","status":"INF","shows":"Tasks grouped by display status, with owner, dependencies and acceptance text.","source":"Board `Task{id, title, owner, blocked_by, acceptance, status}` with D4.","updates":["task_created","task_changed","task_ready"],"action":"","refs":[]},"P1":{"id":"P1","surface":"Plan tab","element":"Plan document","kind":"Harness + SDK","status":"SV+INF","shows":"The plan markdown and its task table.","source":"`PlanVersion.markdown`, stored by the harness (source of truth). Mirrored into the orchestrator's Copilot session with `rpc().plan().update(…)` (SV) so the model's native plan context matches; never read back as truth.","updates":["plan_version_created","plan_decided"],"action":"","refs":[{"label":"plan.update","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L14562"}]},"P2":{"id":"P2","surface":"Plan tab","element":"Version history","kind":"Harness","status":"INF","shows":"Every plan version with state and decision time.","source":"`Plan.versions[*]{version, state, authored_by, decided}`.","updates":["plan_version_created","plan_decided"],"action":"","refs":[]},"P3":{"id":"P3","surface":"Plan tab","element":"Approve / Edit / Reject","kind":"Harness","status":"INF","shows":"Decision controls for the open version.","source":"Commands `plan_decide` and `plan_edit` (see C11).","updates":[],"action":"Edit opens the markdown and task table for editing; saving sets `user_edited = true` on the version.","refs":[]},"M1":{"id":"M1","surface":"Mailbox tab","element":"Filter chips","kind":"Client","status":"CLIENT","shows":"Filter by message kind.","source":"Client filter on `MailKind`.","updates":[],"action":"","refs":[]},"M2":{"id":"M2","surface":"Mailbox tab","element":"Mail item","kind":"Harness","status":"INF","shows":"Sender, recipient, kind, time, text, delivery state, seq.","source":"`MailMessage` with D10 and the envelope `seq` of its last state change.","updates":["mail_created","mail_state"],"action":"","refs":[]},"E1":{"id":"E1","surface":"Event log tab","element":"Durable log head","kind":"Harness","status":"INF","shows":"Highest committed sequence number and whether this client is caught up.","source":"Last `seq` committed by the single log writer; 'in sync' when the client's last received seq equals it.","updates":["*"],"action":"","refs":[]},"E2":{"id":"E2","surface":"Event log tab","element":"On-disk size","kind":"Harness","status":"INF","shows":"Bytes used by the run's log.","source":"Σ sizes of segments, snapshots and blobs from `GET /api/runs/{run}/log/stats` (filesystem metadata, refreshed on `snapshot_written` and every 10 s).","updates":["snapshot_written"],"action":"","refs":[]},"E3":{"id":"E3","surface":"Event log tab","element":"UI window","kind":"Client","status":"CLIENT","shows":"How many envelopes the UI holds in memory (cap 4,096).","source":"Client counter. When full, the oldest envelopes are dropped from memory; scrolling back re-fetches them (C1).","updates":["*"],"action":"","refs":[]},"E4":{"id":"E4","surface":"Event log tab","element":"Lag resyncs","kind":"Harness + SDK","status":"SV+INF","shows":"How often this client or the harness's Copilot reader fell behind, and where recovery started.","source":"Client: count of `resync` frames received. Harness: each `cursor_status: expired` from the single `event_log().read` loop (SV) is recorded as `resync`, and each gap in ephemeral events (which cannot be replayed) as `health`; with the `subscribe()` fallback, each `Lagged(n)` (SV) is recorded as `health{lagged: n}`.","updates":["resync","health"],"action":"","refs":[{"label":"EventsReadResult.cursor_status","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L8175-L8185"}]},"E5":{"id":"E5","surface":"Event log tab","element":"Context per agent","kind":"SDK","status":"SV","shows":"D5 for every agent, with ticks at D11 and 95%.","source":"Latest `session.usage_info` per agent (see H6).","updates":["usage"],"action":"","refs":[{"label":"SessionUsageInfoData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449"}]},"E6":{"id":"E6","surface":"Event log tab","element":"Segments, snapshots, blobs","kind":"Harness","status":"INF","shows":"Files in the run's log directory.","source":"Listing from `GET /api/runs/{run}/log/stats`: segments roll at 64 MiB or 200,000 events; snapshot every 10,000 events, last 3 kept; payloads over 8 KiB go to blobs.","updates":["snapshot_written"],"action":"","refs":[]},"E7":{"id":"E7","surface":"Event log tab","element":"Live tail","kind":"Harness","status":"INF","shows":"Last 10 envelopes on this client's stream.","source":"Columns: `seq`, agent, type, detail. Type = `Origin::Copilot.event_type` (the SDK wire name, e.g. `tool.execution_start`) or the harness `EventKind` (e.g. `task_changed`). Includes ephemeral `delta_batch` frames, which are not stored.","updates":["*"],"action":"","refs":[]},"G1":{"id":"G1","surface":"Worktrees tab","element":"Base commit","kind":"Harness","status":"INF","shows":"Commit every worktree was created from.","source":"`Workspace::Worktree.base_commit`, recorded when the harness ran `git worktree add`.","updates":["agent_spawned"],"action":"","refs":[]},"G2":{"id":"G2","surface":"Worktrees tab","element":"Changed files per worktree","kind":"Git","status":"INF","shows":"Status letter, path and +/− per file.","source":"`git -C <wt> diff --numstat <base_commit>` and `git status --porcelain`.","updates":["tool_finished"],"action":"","refs":[]},"R1":{"id":"R1","surface":"Rail","element":"Panel buttons","kind":"Client","status":"CLIENT","shows":"Which side panel is open.","source":"Client state.","updates":[],"action":"","refs":[]},"R2":{"id":"R2","surface":"Rail","element":"Mailbox badge","kind":"Harness","status":"INF","shows":"Mail needing attention.","source":"Asks to the user not yet answered + user-sent mail still `held` or `submitted`.","updates":["mail_created","mail_state"],"action":"","refs":[]},"R3":{"id":"R3","surface":"Rail","element":"Task board badge","kind":"Harness","status":"INF","shows":"Plan versions awaiting approval.","source":"Count of `PlanVersion` in `awaiting_approval`.","updates":["plan_version_created","plan_decided"],"action":"","refs":[]},"X1":{"id":"X1","surface":"Sample data","element":"Illustrative content","kind":"Sample","status":"SAMPLE","shows":"Run names, the repository 'payments-api', branch names, model names, file paths, code, message text, token counts and timings.","source":"Invented to exercise the wiring above. None of it was produced by an API.","updates":[],"action":"","refs":[]},"D1":{"id":"D1","surface":"Derived","element":"Agent display status","kind":"Harness","status":"SV+INF","shows":"running · needs_permission · needs_answer · waiting_on_agents · idle · starting · rotating · completed · failed · cancelled · crashed","source":"starting: record exists, session not started. running: an `assistant.turn_start` (SV) seen with no later `session.idle` (SV). needs_permission: running and the harness holds an unresolved `PermissionHandler` call. needs_answer: `AgentStatus::InputRequired` (open Ask with a wait, or a pending `UserInputHandler` call). idle: last `session.idle{aborted: false}` and nothing open. waiting_on_agents: idle with at least one child running or needs_*. rotating: a rescue trigger fired and the agent is between its safe point and the new session's start (section 4.3). Terminal states come from `AgentStatus`.","updates":["agent_status","copilot:assistant.turn_start","copilot:session.idle","permission","mail_state"],"action":"","refs":[{"label":"AssistantTurnStartData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3195-L3206"},{"label":"SessionIdleData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L1392-L1398"}]},"D2":{"id":"D2","surface":"Derived","element":"Activity line","kind":"SDK + Harness","status":"SV+INF","shows":"One line saying what the agent is doing.","source":"Latest `assistant.intent{intent}` (SV) since the last `assistant.turn_start`; else the private checklist item `in_progress`; else the last `tool_title` / `tool_name`. Cut to 80 chars.","updates":["copilot:assistant.intent","scratch_todos","tool_started"],"action":"","refs":[{"label":"AssistantIntentData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3268-L3270"}]},"D3":{"id":"D3","surface":"Derived","element":"Step X of Y","kind":"Harness","status":"INF","shows":"Progress through the private checklist.","source":"Y = number of checklist items; X = completed items + 1 if one is `in_progress`. Hidden when the agent has no checklist.","updates":["scratch_todos"],"action":"","refs":[]},"D4":{"id":"D4","surface":"Derived","element":"Task display status","kind":"Harness","status":"INF","shows":"Done · In progress · Needs answer · Blocked · Ready · Waiting · Proposed · Failed · Cancelled","source":"`completed` → Done; `in_progress` → In progress; `input_required` → Needs answer; `blocked{…}` → Blocked; `proposed` → Proposed; `pending` with every `blocked_by` completed and no lease → Ready; `pending` otherwise → Waiting (on the unmet ids).","updates":["task_changed","task_ready"],"action":"","refs":[]},"D5":{"id":"D5","surface":"Derived","element":"Context %","kind":"SDK","status":"SV","shows":"Share of the context window in use.","source":"`round(100 × current_tokens / token_limit)` from the latest `session.usage_info` of the agent's current generation. Unknown after a new generation until its first `session.usage_info`; unchanged by a resume.","updates":["usage"],"action":"","refs":[{"label":"SessionUsageInfoData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449"}]},"D6":{"id":"D6","surface":"Derived","element":"Elapsed","kind":"Harness","status":"INF","shows":"Time since the agent was spawned.","source":"Now − `ts_ms` of the `agent_spawned` envelope; frozen at the terminal status.","updates":["agent_status"],"action":"","refs":[]},"D7":{"id":"D7","surface":"Derived","element":"Tokens","kind":"SDK","status":"SV+UNV","shows":"Tokens used by the agent across all its generations, and the share of input served from the provider's prompt cache.","source":"Σ (`input_tokens` + `output_tokens`) over its `assistant.usage` events; cached share = Σ `cache_read_tokens` / Σ `input_tokens` (probe V17 settles whether `input_tokens` includes cache reads; if not, the denominator is `input_tokens + cache_read_tokens`).","updates":["copilot:assistant.usage"],"action":"","refs":[{"label":"AssistantUsageData.input_tokens","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4090"},{"label":"AssistantUsageData.output_tokens","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4123"},{"label":"AssistantUsageData.cache_read_tokens","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4041"}]},"D8":{"id":"D8","surface":"Derived","element":"Needs-you count","kind":"Harness","status":"INF","shows":"Items waiting on the user.","source":"Open Asks addressed to the user + `PlanVersion`s in `awaiting_approval` + permission requests held by the harness (including ones auto-denied and waiting for 'Approve & retry').","updates":["mail_state","plan_decided","permission"],"action":"","refs":[]},"D9":{"id":"D9","surface":"Derived","element":"Per-edit diff","kind":"Harness","status":"INF","shows":"Lines changed by one tool call.","source":"For each `file_edits[].path` after `tool.execution_complete`: read the file in the agent's worktree, store it as a content-addressed blob, diff against the previous stored version of that path (or `git show <base_commit>:<path>`; empty for new files) with the `similar` crate. Counts = inserted / deleted lines.","updates":["tool_finished"],"action":"","refs":[]},"D10":{"id":"D10","surface":"Derived","element":"Delivery text","kind":"Harness + SDK","status":"SV+INF","shows":"How a message reached its recipient.","source":"`held` → 'Held until <agent> is idle'; `submitted` → 'Queued in <agent>'s session'; `in_context{steering}` → 'Steered into the current turn'; `in_context{queued}` → 'Delivered at the turn boundary'; `in_context{idle}` → 'Delivered; started a turn'; `answered`, `withdrawn`, `expired`, `failed` as named. The `delivery` values come from `UserMessageDelivery` (SV).","updates":["mail_state"],"action":"","refs":[{"label":"UserMessageDelivery","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L10053-L10066"}]},"D11":{"id":"D11","surface":"Derived","element":"Compaction threshold","kind":"SDK + Harness","status":"SV+INF","shows":"Where background compaction starts for this agent, as a share of its window.","source":"`min(0.80, 250000 / window)`, where `window` is the context size declared by the agent's BYOK provider profile (`context_window_tokens`), known before the session is created and also passed as `ProviderConfig.max_prompt_tokens` (SV). The result is set as `InfiniteSessionConfig.background_compaction_threshold` (field SV, formula INF, section 4.2). If the first `session.usage_info.token_limit` differs, the harness logs `health` and uses the smaller value from the next generation on. 0.80 for a 200K window, 0.625 for 400K, 0.25 for 1M.","updates":["agent_spawned","agent_rotated","usage"],"action":"","refs":[{"label":"InfiniteSessionConfig","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012"},{"label":"ProviderConfig.max_prompt_tokens","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1351-L1356"},{"label":"SessionUsageInfoData","href":"https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449"}]}};
+const WIRING_META = {"commit":"b19d3ef043ebfeaeb794339173c39ad6c8eb29ca","tag":"rust/v1.0.21-preview.2 (identical rust/src at this commit)","legend":{"SV":"verified in Copilot Rust SDK source at the pinned commit (linked)","INF":"harness design defined in this spec (intentional, not an SDK fact)","UNV":"depends on SDK behaviour not yet verified; see the probe list","CLIENT":"computed or held only in the UI","SAMPLE":"illustrative mockup data, not produced by any API"}};
+/*WIRING:END*/
+
+/* =====================================================================
+   Sample run. Everything below is illustrative data (wiring id X1) shaped
+   exactly like the harness projection described in the report.
+   ===================================================================== */
+const AG = {
+  orchestrator:{c:'--a-orch',role:'lead',kind:'orchestrator',model:'gpt-5.1',prov:'corp-azure (azure)',status:'waiting',task:null,act:'Waiting on coder-1 and coder-2',ctx:41,el:'38m',tok:'212k',where:'main (read-only)',gen:1,comp:1,cache:84,sid:'7f3c09a2'},
+  explorer:{c:'--a-explorer',role:'subagent',kind:'quick',model:'gpt-5-mini',prov:'corp-azure (azure)',status:'done',task:'T1',act:'Returned its report to orchestrator',ctx:22,el:'1m 12s',tok:'38k',where:'main (read-only)',gen:1,comp:0,cache:61,sid:'91aa5be0'},
+  'coder-1':{c:'--a-coder1',role:'teammate',kind:'teammate',model:'claude-sonnet-4.5',prov:'team-anthropic (anthropic)',status:'running',task:'T2',act:'Wiring the OIDC client into AuthState',step:[4,7],ctx:46,el:'24m',tok:'141k',where:'wt/coder-1',branch:'harness/r12/coder-1-T2',gen:2,comp:0,cache:77,sid:'2b80d1f4'},
+  'coder-2':{c:'--a-coder2',role:'teammate',kind:'teammate',model:'claude-sonnet-4.5',prov:'team-anthropic (anthropic)',status:'permission',task:'T5',act:'Waiting for permission to run cargo test',step:[4,5],ctx:34,el:'24m',tok:'88k',where:'wt/coder-2',branch:'harness/r12/coder-2-T5',gen:1,comp:0,cache:80,sid:'c41e7730'},
+  tester:{c:'--a-tester',role:'teammate',kind:'teammate',model:'gpt-5.1-codex',prov:'corp-azure (azure)',status:'idle',task:'T4',act:'Idle: T4 waits on T2 and T3 · 1 held message',ctx:4,el:'24m',tok:'2k',where:'wt/tester',branch:'harness/r12/tester-T4',gen:1,comp:0,cache:0,sid:'e0195c3d'}
+};
+const ORDER = ['orchestrator','coder-1','coder-2','tester','explorer'];
+
+/* D1 display status */
+const ST = {
+  running:{l:'Running',g:'run'}, waiting:{l:'Waiting on agents',g:'wait'},
+  permission:{l:'Needs permission',g:'need',w:1}, input:{l:'Needs answer',g:'need',w:1},
+  idle:{l:'Idle',g:'idle'}, starting:{l:'Starting',g:'wait'}, rotating:{l:'Rotating session',g:'wait'},
+  done:{l:'Completed',g:'done'}, cancelled:{l:'Cancelled',g:'err'}
+};
+/* D4 task display status */
+const TST = {
+  done:{l:'Done',g:'done'}, in_progress:{l:'In progress',g:'run'}, ready:{l:'Ready',g:'idle'}, waiting:{l:'Waiting',g:'block'},
+  blocked:{l:'Blocked',g:'err'}, proposed:{l:'Proposed',g:'prop'}, input_required:{l:'Needs answer',g:'need'}, cancelled:{l:'Cancelled',g:'err'}
+};
+
+const TASKS = [
+  {id:'T1',title:'Audit current auth path',owner:'explorer',role:'explore',deps:[],st:'done',acc:'Report: cookie/session flow, middleware layers, tests that touch auth'},
+  {id:'T2',title:'Add OIDC client + discovery',owner:'coder-1',role:'implement',deps:['T1'],st:'in_progress',acc:'AuthState::oidc() returns a cached client; JWKS refreshes every 10 min'},
+  {id:'T5',title:'Config + docs for OIDC_* settings',owner:'coder-2',role:'implement',deps:['T1'],st:'in_progress',acc:'Settings load from env; AUTH_* kept as deprecated aliases; README updated'},
+  {id:'T3',title:'Swap middleware to JWT validation',owner:'coder-2',role:'implement',deps:['T2'],st:'pending',acc:'/v1 routes accept Bearer tokens; cookie path behind the legacy-auth flag'},
+  {id:'T4',title:'Integration tests vs mock IdP',owner:'tester',role:'test',deps:['T2','T3'],st:'pending',acc:'wiremock IdP; happy path, expired token, wrong audience, rotated JWKS'},
+  {id:'T6',title:'Review & merge worktrees',owner:null,role:'review',deps:['T3','T4','T5'],st:'pending',acc:'Clean merge into main; /v1 contract tests unchanged'},
+  {id:'T7',title:'Rotate refresh tokens',owner:null,role:'implement',deps:['T2'],st:'proposed',acc:'Rotate on use; reuse detection revokes the token family'}
+];
+
+/* MailKind: steer | directive | ask | answer | peer | notify.  DeliveryState: held | submitted | in_context | read | answered | withdrawn */
+const MAIL = [
+  {id:'b1',from:'orchestrator',to:'explorer',kind:'directive',time:'10:33',seq:2120,state:'read',text:'Brief for T1 (read-only audit).'},
+  {id:'r1',from:'explorer',to:'orchestrator',kind:'notify',time:'10:39',seq:29880,state:'read',text:'AgentCompleted · T1 report: cookie sessions in src/auth/session.rs, 3 middleware layers, 41 auth tests, no refresh-token logic.'},
+  {id:'b2',from:'orchestrator',to:'coder-1',kind:'directive',time:'10:44',seq:31010,state:'read',text:'Brief for T2: add OIDC client + discovery.'},
+  {id:'b3',from:'orchestrator',to:'coder-2',kind:'directive',time:'10:44',seq:31020,state:'read',text:'Brief for T5: config + docs. You also own T3 once it is ready.'},
+  {id:'m1',from:'coder-2',to:'tester',kind:'peer',time:'10:58',seq:43770,state:'held',text:'Renamed AUTH_ISSUER → OIDC_ISSUER_URL and AUTH_AUDIENCE → OIDC_AUDIENCE. Update fixtures when you start T4.'},
+  {id:'m2',from:'you',to:'coder-1',kind:'steer',time:'11:01',seq:48120,state:'in_context',delivery:'steering',text:'Use the openidconnect crate for discovery and JWKS. Don’t hand-roll it.'},
+  {id:'q1',from:'coder-1',to:'orchestrator',kind:'ask',time:'11:05',seq:48660,state:'read',forwarded:true,text:'Okta’s discovery document advertises RS256 and ES256. Pin to RS256, or accept both?'}
+];
+
+const PERMS = {p1:{agent:'coder-2',state:'open',left:74,cmd:'cargo test -p auth --features oidc',wt:'wt/coder-2',
+  intention:'Run the auth crate tests to verify config parsing after renaming the OIDC_* settings',paths:['target/','Cargo.lock'],sessionOk:true}};
+const PLAN = {v1:{state:'approved',at:'10:42'}, v2:{state:'open',at:'11:07'}};
+const SCRATCH = {
+  'coder-1':[['Add openidconnect crate',1],['OidcSettings struct',1],['Discovery with 10-min cache',1],['Wire client into AuthState',2],['JWKS refresh task',0],['Unit tests: cache expiry',0],['Report back to orchestrator',0]],
+  'coder-2':[['OIDC_* settings',1],['Deprecated AUTH_* aliases',1],['README section',1],['Run cargo test',2],['Report back',0]]
+};
+
+const T = {
+  orchestrator:[
+    {t:'user',time:'10:31',text:'Migrate payments-api auth from cookie sessions to OIDC (Okta). Keep the /v1 API contract stable. Parallelize where it is safe.'},
+    {t:'asst',agent:'orchestrator',think:'Need the real request path before splitting work. Plan mode is read-only, so delegate an audit first.',
+      acts:[['search','Searched','"Session|Cookie" in src/','0.4s'],['file','Read','src/auth/mod.rs','0.1s'],['users','Spawned subagent','explorer → T1 · read-only · quick','0.6s']],
+      md:'<p>I’m in plan mode, so nothing gets written yet. An explorer is auditing the current auth path before I propose tasks.</p>',meta:['38.2s','6.1k tokens']},
+    {t:'task',agent:'explorer'},
+    {t:'plan1'},
+    {t:'asst',agent:'orchestrator',
+      acts:[['users','Spawned teammate','coder-1 → T2 · worktree wt/coder-1','1.1s'],['users','Spawned teammate','coder-2 → T5 · worktree wt/coder-2','0.9s'],['users','Spawned teammate','tester → T4 · idle until T4 is ready','0.4s']],
+      md:'<p>You approved plan v1. <b>coder-1</b> is on T2 and <b>coder-2</b> is on T5, each in its own worktree. <b>tester</b> waits until T4 is ready. T6 (review) has no owner yet; I’ll spawn a reviewer when it becomes ready.</p>',meta:['12.4s','3.3k tokens']},
+    {t:'task',agent:'coder-1'},
+    {t:'task',agent:'coder-2'},
+    {t:'mail',id:'m1'},
+    {t:'steer',id:'m2'},
+    {t:'compact',agent:'orchestrator',head:'Context compacted at 80% (160k of 200k tokens)',sub:'trigger: threshold · 38 messages removed · 160k → 58k tokens · summarizer: 160k in (152k cached), 2.1k out, 41 s'},
+    {t:'ask',id:'q1'},
+    {t:'replan'},
+    {t:'perm',id:'p1'}
+  ],
+  explorer:[
+    {t:'brief',from:'orchestrator',task:'T1',time:'10:33',text:'Read-only audit. Map how a request is authenticated today (cookie → session → user). List the middleware layers, session storage, and tests that touch auth. Return a concise report.',ctx:'Tools: read-only built-ins (edit and shell-write tools excluded) · Workspace: main checkout'},
+    {t:'asst',agent:'explorer',acts:[['search','Searched','"pa_sid|SessionStore" in src/','0.3s'],['file','Read','src/auth/session.rs','0.1s'],['file','Read','src/http/mod.rs','0.1s'],['search','Searched','"cookie" in tests/','0.2s']],
+      md:'<p><b>SUMMARY</b></p><ul><li>Sessions use a signed cookie <code>pa_sid</code> → Redis lookup in <code>src/auth/session.rs</code>.</li><li>Middleware: <code>RequireSession</code>, <code>LoadUser</code>, <code>CsrfGuard</code> (tower layers in <code>src/http/mod.rs</code>).</li><li>41 tests touch auth; 12 build cookies by hand.</li><li>No refresh-token or rotation logic exists.</li></ul>',meta:['1m 12s','38k tokens']},
+    {t:'result',text:'Report returned to orchestrator (1,240 tokens). Session disconnected.'}
+  ],
+  'coder-1':[
+    {t:'brief',from:'orchestrator',task:'T2',time:'10:44',text:'Add an OIDC client using Okta discovery. Expose <code>AuthState::oidc()</code> returning a cached client and refresh JWKS every 10 minutes. Don’t touch middleware; T3 owns it. When done, report files changed, test status and open questions.',ctx:'Context: plan v1 + T1 report (1,240 tokens) · Tools: read, edit, shell (asks) · Workspace: wt/coder-1'},
+    {t:'scratch',agent:'coder-1'},
+    {t:'asst',agent:'coder-1',acts:[['file','Read','src/auth/mod.rs','0.1s'],['file','Read','src/config.rs','0.1s'],['edit','Edited','Cargo.toml','0.2s',[2,0]],['edit','Created','src/auth/oidc.rs','0.4s',[86,0]],['term','Ran','cargo check -p auth','14.2s']],
+      md:'<p>Added <code>OidcSettings</code> and a discovery fetch with a 10-minute cache.</p>',meta:['2m 41s','19k tokens']},
+    {t:'rotate',agent:'coder-1',head:'Moved to a new Copilot session (generation 2)',sub:'trigger: compaction failed twice in a row (summarizer timeout) · handoff 1.6k tokens: owned task, mail summaries, checklist, last message, diff --stat (no earlier compaction summary to reuse) · old session 5d21c0e7 closed'},
+    {t:'steer',id:'m2'},
+    {t:'asst',agent:'coder-1',acts:[['edit','Edited','src/auth/oidc.rs','0.3s',[31,44]],['term','Ran','cargo check -p auth','11.8s']],
+      md:'<p>Switched to <code>CoreProviderMetadata::discover_async</code> from the <code>openidconnect</code> crate and removed the hand-written discovery parser.</p>',meta:['1m 58s','14k tokens']},
+    {t:'diff'},
+    {t:'askout',id:'q1'},
+    {t:'stream',agent:'coder-1',text:'',full:'While the algorithm question is open, I’m wiring the client into AuthState behind an Arc<RwLock<…>> so the JWKS refresher can swap keys without blocking request handlers. Next: spawn the refresh task on the runtime and add unit tests for the cache-expiry path.'}
+  ],
+  'coder-2':[
+    {t:'brief',from:'orchestrator',task:'T5',time:'10:44',text:'Add OIDC_* settings (issuer URL, audience, client id). Keep AUTH_* as deprecated aliases for one release and document the new names in README. You also own T3 once it is ready.',ctx:'Context: plan v1 + T1 report · Tools: read, edit, shell (asks) · Workspace: wt/coder-2'},
+    {t:'scratch',agent:'coder-2'},
+    {t:'asst',agent:'coder-2',acts:[['file','Read','src/config.rs','0.1s'],['edit','Edited','src/config.rs','0.3s',[42,9]],['edit','Edited','README.md','0.2s',[28,0]],['mail','Messaged','tester (peer)','0.1s']],
+      md:'<p>Renamed the settings and kept the old names as deprecated aliases. I told tester about the rename so the T4 fixtures match.</p>',meta:['3m 05s','21k tokens']},
+    {t:'mail',id:'m1'},
+    {t:'perm',id:'p1'}
+  ],
+  tester:[
+    {t:'brief',from:'orchestrator',task:'T4',time:'10:44',text:'Write integration tests for Bearer auth on /v1 routes against a mock IdP (wiremock). Cover happy path, expired token, wrong audience and rotated JWKS.',ctx:'Starts when T4 is ready (needs T2 and T3) · Workspace: wt/tester'},
+    {t:'mail',id:'m1'},
+    {t:'idle',text:'Idle. T4 waits on T2 and T3. The harness wakes tester with a single prompt when T4 becomes ready; held peer messages are delivered in that prompt.'}
+  ]
+};
+
+const DIFF = [
+  ['h','','@@ -18,14 +18,9 @@ impl OidcClient {'],
+  [' ','18','    pub async fn discover(s: &OidcSettings) -> anyhow::Result<Self> {'],
+  ['-','19','        let url = format!("{}/.well-known/openid-configuration", s.issuer);'],
+  ['-','20','        let doc: DiscoveryDoc = reqwest::get(url).await?.json().await?;'],
+  ['-','21','        let jwks: JwkSet = reqwest::get(&doc.jwks_uri).await?.json().await?;'],
+  ['+','19','        let meta = CoreProviderMetadata::discover_async('],
+  ['+','20','            s.issuer_url.clone(), async_http_client).await?;'],
+  ['+','21','        let client = CoreClient::from_provider_metadata('],
+  ['+','22','            meta, s.client_id.clone(), None);'],
+  [' ','23','        Ok(Self { client, fetched_at: Instant::now() })'],
+  [' ','24','    }']
+];
+
+let EVENTS = [
+  [48931,'coder-1','delta_batch','assistant.message_delta ×38 → 1 frame (not stored)'],
+  [48930,'coder-1','assistant.intent','Wiring the OIDC client into AuthState'],
+  [48929,'coder-2','permission','held by harness · shell · cargo test -p auth'],
+  [48928,'orchestrator','plan_version_created','v2 · +T7 · awaiting approval'],
+  [48927,'harness','mail_state','q1 · forwarded to user'],
+  [48926,'coder-1','tool.execution_complete','cargo check -p auth · success'],
+  [48925,'coder-1','tool.execution_start','cargo check -p auth'],
+  [48924,'coder-1','session.usage_info','46% · 92k / 200k'],
+  [48923,'harness','task_changed','T2 · version 14 · note added'],
+  [48922,'coder-2','tool.execution_complete','edit README.md · file_edits: 1']
+];
+const SAMPLE = [
+  ['coder-1','delta_batch','assistant.message_delta ×24 → 1 frame (not stored)'],
+  ['coder-1','tool.execution_start','edit src/auth/state.rs'],
+  ['coder-1','tool.execution_complete','edit · file_edits: 1 · +12 −3 (D9)'],
+  ['orchestrator','session.usage_info','41% · 82k / 200k'],
+  ['coder-1','delta_batch','assistant.message_delta ×31 → 1 frame (not stored)'],
+  ['harness','health','cli rss 1.21 GiB · events.jsonl 9.8 MiB (coder-1)'],
+  ['coder-1','assistant.usage','in 3.1k · out 412 · is_byok true']
+];
+
+const state = {view:'orchestrator',panel:'agents',panelOpen:true,sideOpen:false,target:'orchestrator',steer:true,
+  taskView:'graph',mailFilter:'all',seq:48931,si:0,win:1840,stopArm:null,menu:false,openCards:{plan1:true,rep:false},newRow:false,wiring:false};
+
+/* ======================= helpers ======================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ic = (n,c='') => `<svg class="ic ${c}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const wst = id => { const s=(WIRING[id]&&WIRING[id].status)||''; return s.includes('UNV')?'UNV':s.includes('SV')?'SV':s.includes('INF')?'INF':s||'CLIENT'; };
+const wa = id => `data-w="${id}" data-ws="${wst(id)}"`;
+const dot = a => a==='you'||a==='harness' ? `<span class="dot" style="--c:var(--fg-strong)"></span>` : `<span class="dot" style="--c:var(${AG[a]?AG[a].c:'--muted'})"></span>`;
+const who = a => a==='you' ? 'You' : a;
+const glyph = g => `<span class="sg ${g}" aria-hidden="true">${g==='done'?ic('check','xs'):g==='need'?'!':''}</span>`;
+const sp = s => { const x=ST[s]; return `<span class="sp ${x.w?'warn':''}" ${wa('D1')}>${glyph(x.g)}${x.l}</span>`; };
+const tk = id => TASKS.find(t=>t.id===id);
+const tdisp = t => t.st==='pending' ? (t.deps.every(d=>tk(d).st==='done') ? 'ready' : 'waiting') : t.st;
+const tsp = t => { const k=tdisp(t), x=TST[k]; return `<span class="sp" ${wa('D4')}>${glyph(x.g)}${x.l}${k==='waiting'?' on '+t.deps.filter(d=>tk(d).st!=='done').join(', '):''}</span>`; };
+const mail = id => MAIL.find(m=>m.id===id);
+const fmt = n => n.toLocaleString('en-US');
+const busy = a => ['running','waiting','permission','input'].includes(AG[a].status);
+const permOpen = p => p.state==='open' || p.state==='timed_out';
+const needsCount = () => (mail('q1').state!=='answered'?1:0) + (PLAN.v2.state==='open'?1:0) + Object.values(PERMS).filter(permOpen).length;
+const activeCount = () => ORDER.filter(busy).length;
+const owner = t => t.owner ? `${dot(t.owner)}${t.owner}` : `<span class="faint">unassigned · ${t.role}</span>`;
+function deliveryText(m){
+  if(m.state==='held') return `Held until ${m.to} is woken`;
+  if(m.state==='submitted') return `Queued in ${m.to}’s session`;
+  if(m.state==='in_context') return m.delivery==='steering'?'Steered into the current turn':m.delivery==='queued'?'Delivered at the turn boundary':'Delivered; started a turn';
+  if(m.state==='read') return m.forwarded?'Read · forwarded to you by orchestrator':'Read';
+  return m.state.charAt(0).toUpperCase()+m.state.slice(1);
+}
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toast.h); toast.h=setTimeout(()=>t.hidden=true,2600); }
+function meter(v,id='D5'){ return `<div class="meter" ${wa(id)} role="img" aria-label="Context ${v}% used; compaction at 80%, hard limit 95%"><i class="${v>=80?'hot':''}" style="width:${v}%"></i><span class="tick" style="left:80%"></span><span class="tick" style="left:95%"></span></div>`; }
+
+/* ======================= sidebar ======================= */
+function renderSidebar(){
+  const kids = ORDER.map(a=>{ const A=AG[a];
+    return `<button class="sb-row sb-agent ${state.view===a?'sel':''}" data-act="open" data-agent="${a}" ${wa('S3')}>${glyph(ST[A.status].g)}<span class="t">${a}</span><span class="meta">${A.task||'lead'}</span></button>`; }).join('');
+  const other = (t,m) => `<button class="sb-row" data-act="demo" ${wa('X1')}><span class="t">${t}</span><span class="meta">${m}</span></button>`;
+  $('#sidebar').innerHTML = `
+    <div class="sb-top"><span class="logo">${ic('cpu')}</span><span class="wordmark">harness</span><span class="spacer"></span>
+      <button class="ibtn mobile-only" data-act="close-overlays" aria-label="Close sidebar">${ic('x')}</button></div>
+    <button class="sb-new" data-act="demo" ${wa('S7')}>${ic('msg')}New session</button>
+    <div class="sb-tools" ${wa('S7')}>
+      <button class="ibtn" data-act="demo" aria-label="Open project">${ic('folder')}</button>
+      <button class="ibtn" data-act="demo" aria-label="History">${ic('clock')}</button>
+      <button class="ibtn" data-act="panel" data-tab="git" aria-label="Worktrees">${ic('branch')}</button>
+      <span class="spacer"></span>
+      <button class="ibtn" data-act="demo" aria-label="Search sessions">${ic('search')}</button>
+    </div>
+    <div class="sb-scroll">
+      <div class="sb-gh">${ic('clock','sm')}recent</div>
+      <button class="sb-row active" data-act="open" data-agent="orchestrator" ${wa('S1')}><span class="chev">${ic('down','sm')}</span><span class="t">Migrate auth to OIDC</span><span class="meta" ${wa('S2')}>${ORDER.filter(a=>!['done','cancelled'].includes(AG[a].status)).length} live</span></button>
+      <div class="sb-kids">${kids}</div>
+      ${other('Flaky rate-limiter test','2h')}
+      ${other('Bump tokio to 1.48','yday')}
+      ${other('Ledger CSV export','Mon')}
+      <div class="sb-more">Show more sessions</div>
+      <div class="sb-gh" ${wa('S4')}>${ic('folder','sm')}payments-api</div>
+      ${other('Migrate auth to OIDC','now')}
+      ${other('Idempotency keys for /v1/charges','#418')}
+      <div class="sb-gh">${ic('branch','sm')}agent worktrees</div>
+      ${['coder-1','coder-2','tester'].map(a=>`<button class="sb-row sb-wt" data-act="panel" data-tab="git" ${wa('S5')}>${ic('branch','sm')}<span class="t mono" style="font-size:12px">${AG[a].branch}</span>${dot(a)}</button>`).join('')}
+    </div>
+    <div class="sb-foot">
+      <button class="ibtn" data-act="demo" aria-label="Settings">${ic('sliders')}</button>
+      <button class="ibtn" data-act="demo" aria-label="Help">${ic('help')}</button>
+      <span class="conn" ${wa('S6')} title="One Copilot CLI process hosts one SDK session per live agent"><i></i>Copilot CLI · 1 process · ${ORDER.filter(a=>!['done','cancelled'].includes(AG[a].status)).length} sessions</span>
+    </div>`;
+}
+
+/* ======================= topbar ======================= */
+function isDark(){ const t=document.documentElement.dataset.theme; return t ? t==='dark' : !matchMedia('(prefers-color-scheme: light)').matches; }
+function renderTop(){
+  const v=state.view, A=AG[v];
+  const title = v==='orchestrator'
+    ? `<span class="cur">Migrate auth to OIDC</span>`
+    : `<button class="crumb" data-act="open" data-agent="orchestrator">Migrate auth to OIDC</button>${ic('chev','sm')}${dot(v)}<span class="cur">${v}</span><span class="gen">gen ${A.gen}</span>`;
+  const sub = v==='orchestrator'
+    ? `<span ${wa('H2')} style="display:inline-flex;gap:6px;align-items:center">${ic('folder')}payments-api <span class="faint">·</span> ${ic('branch')}main <span class="faint">·</span> lead session ${A.sid}</span>`
+    : `<span ${wa('H3')} style="display:inline-flex;gap:6px;align-items:center">${A.kind==='quick'?'Subagent (quick)':'Teammate'} of orchestrator <span class="faint">·</span> <span class="tid">${A.task}</span> ${esc(tk(A.task).title)} <span class="faint">·</span> ${ic('branch')}${A.branch||A.where}</span>`;
+  const C=2*Math.PI*7, n=needsCount();
+  $('#topbar').innerHTML = `
+    <button class="ibtn mobile-only" data-act="side" aria-label="Open sessions">${ic('menu')}</button>
+    <div class="tb-title"><div class="tb-line" ${wa('H1')}>${title}</div><div class="tb-sub">${sub}</div></div>
+    <div class="tb-right">
+      <button class="chip hide-m" data-act="panel" data-tab="agents" ${wa('H4')}>${ic('users','sm')}${activeCount()} active</button>
+      ${n?`<button class="chip warn" data-act="jump" ${wa('H5')}>${ic('hourglass','sm')}${n} need you</button>`:''}
+      <span class="chip ctxchip ring" ${wa('H6')} title="Context used by ${v}; compaction starts at 80%"><svg viewBox="0 0 18 18"><circle class="bgc" cx="9" cy="9" r="7"/><circle class="fgc ${A.ctx>=80?'hot':''}" cx="9" cy="9" r="7" stroke-dasharray="${(A.ctx/100*C).toFixed(1)} ${C.toFixed(1)}"/></svg>${A.ctx}%</span>
+      <span class="chip byok" ${wa('H7')} title="Bring-your-own-key provider profile for this agent's session">${ic('key','sm')}BYOK · ${A.prov}</span>
+      <button class="chip ${state.wiring?'warn':''}" data-act="wiring" ${wa('H9')} aria-pressed="${state.wiring}">${ic('plug','sm')}<span class="hide-m">Wiring</span></button>
+      <button class="ibtn" data-act="theme" ${wa('H8')} aria-label="Toggle light or dark theme">${ic(isDark()?'sun':'moon')}</button>
+      <button class="ibtn mobile-only" data-act="panel" data-tab="${state.panel}" aria-label="Open context panel">${ic('panel')}</button>
+    </div>`;
+}
+
+/* ======================= thread blocks ======================= */
+const ICON = {term:'term',edit:'edit',file:'file',search:'search',branch:'branch',mail:'mail',users:'users'};
+function bUser(b){ return `<div class="msg-user" ${wa('C2')}><div class="bubble">${esc(b.text)}</div><div class="msg-time">You · ${b.time}</div></div>`; }
+function activity(acts){
+  return `<div class="acts" ${wa('C5')}><div class="acts-h">Activity · ${acts.length} tool calls</div>${acts.map(([i,v,a,d,st])=>`<div class="act">${ic(ICON[i]||'users','sm')}<b>${v}</b><span class="arg">${esc(a)}</span>${st?`<span ${wa('D9')} style="font-size:12px"><span class="plus">+${st[0]}</span> <span class="minus">−${st[1]}</span></span>`:''}<span class="dur">${d}</span></div>`).join('')}</div>`;
+}
+function bAsst(b){
+  const A=AG[b.agent];
+  return `<div class="msg-asst">
+    <div class="ah" ${wa('C3')}>${dot(b.agent)}<b>${b.agent}</b><span class="pill role">${A.role}</span><span class="muted">${A.model}</span></div>
+    ${b.think?`<div class="think" ${wa('C4')}>${ic('spark','sm')}<b>Thinking</b><span>${esc(b.think)}</span></div>`:''}
+    ${b.acts?activity(b.acts):''}
+    <div class="md" ${wa('C6')}>${b.md}</div>
+    ${b.meta?`<div class="ameta" ${wa('C7')}><span>${ic('hourglass','sm')}${b.meta[0]}</span><span>${b.meta[1]}</span></div>`:''}
+  </div>`;
+}
+function bTask(b){
+  const a=b.agent, A=AG[a], t=tk(A.task), running=A.status==='running';
+  const actions = ['done','cancelled'].includes(A.status)
+    ? `<button class="btn xs" data-act="open" data-agent="${a}">${ic('open','sm')}Open transcript</button>`
+    : `<button class="btn xs" data-act="open" data-agent="${a}">${ic('open','sm')}Open transcript</button>
+       <button class="btn xs ghost" data-act="msg" data-agent="${a}">${ic('msg','sm')}Message</button>
+       <button class="btn xs ghost danger" data-act="stop" data-agent="${a}">${ic('stop','sm')}${state.stopArm===a?'Confirm stop':'Stop'}</button>`;
+  const body = A.status==='done'
+    ? `<div class="tc-act">${esc(A.act)}</div>
+       <div class="report" ${wa('C9')}>${state.openCards.rep
+          ? 'Cookie sessions (<code>pa_sid</code>) → Redis in <code>src/auth/session.rs</code>; 3 tower layers; 41 auth tests (12 build cookies by hand); no refresh-token logic.'
+          : 'Cookie sessions → Redis; 3 middleware layers; 41 auth tests; no refresh-token logic.'}
+         <button class="btn xs ghost" data-act="toggle" data-card="rep">${state.openCards.rep?'Less':'Full report'}</button></div>`
+    : `<div class="tc-act" ${wa('D2')}>${running?`<span class="shine">${esc(A.act)}</span>`:esc(A.act)}</div>
+       ${A.step?`<div class="prog" style="--c:var(${A.c})" ${wa('D3')}><span>Step ${A.step[0]} of ${A.step[1]}</span><div class="bar"><i style="width:${(A.step[0]-(running?.5:0))/A.step[1]*100}%"></i></div></div>`:''}`;
+  return `<div class="card tcard ${A.status==='permission'?'needs':''}" ${wa('C8')}>
+    <div class="card-h">${ic('users','sm')}<span class="tc-kind">${A.kind==='quick'?'Subagent · quick':'Teammate'}</span>${dot(a)}<b>${a}</b><span class="gen">gen ${A.gen}</span><span class="tid">${t.id}</span><span class="tc-title">${esc(t.title)}</span>${sp(A.status)}</div>
+    <div class="card-b">
+      ${body}
+      <div class="tc-meta"><span>${ic('branch')}${A.branch||A.where}</span><span ${wa('D5')}>ctx ${A.ctx}%</span><span ${wa('D6')}>${ic('hourglass')}${A.el}</span><span ${wa('D7')}>${A.tok} tokens · ${A.cache}% cached</span><span ${wa('K9')}>${A.model}</span></div>
+      <div class="btns">${actions}</div>
+    </div></div>`;
+}
+function planRows(list, addIds=[], changed={}){
+  return `<div class="ptasks">${list.map(t=>`<div class="ptask ${addIds.includes(t.id)?'add':''}"><span class="mark">${addIds.includes(t.id)?'+':changed[t.id]?'~':''}</span><span class="tid">${t.id}</span><span class="pt-title">${esc(t.title)}</span><span class="pt-own">${owner(t)}</span><span class="pt-dep">${t.deps.length?'after '+t.deps.join(', '):'—'}</span></div>`).join('')}</div>`;
+}
+function bPlan1(){
+  const open=state.openCards.plan1;
+  return `<div class="card" ${wa('C10')}>
+    <button class="card-h" data-act="toggle" data-card="plan1" aria-expanded="${open}">${ic('plan','sm')}<b>Plan v1</b><span class="muted">Migrate auth to OIDC · 6 tasks</span><span class="spacer"></span><span class="pill ok">${ic('check','xs')}Approved by you · ${PLAN.v1.at}</span>${ic(open?'down':'chev','sm')}</button>
+    ${open?`<div class="card-b">${planRows(TASKS.filter(t=>t.id!=='T7'))}<div class="small muted">Approval created these tasks on the board and switched the orchestrator out of plan mode. Writers work only inside their worktrees.</div></div>`:''}
+  </div>`;
+}
+function bReplan(){
+  const v=PLAN.v2;
+  if(v.state!=='open') return `<div class="card" ${wa('C11')}><div class="card-h">${ic('plan','sm')}<b>Plan v2</b><span class="muted">+T7 Rotate refresh tokens</span><span class="spacer"></span><span class="pill ${v.state==='approved'?'ok':''}">${v.state==='approved'?ic('check','xs')+'Approved':'Rejected'} by you · ${v.decidedAt}</span></div></div>`;
+  return `<div class="card accent" data-needs="1" ${wa('C11')}>
+    <div class="card-h">${ic('plan','sm')}<b>Plan v2 proposed</b><span class="muted">by orchestrator · ${v.at}</span><span class="spacer"></span><span class="pill warn">Awaiting your approval</span></div>
+    <div class="card-b">
+      <p class="small" style="color:var(--fg)">coder-1 found that refresh tokens are never rotated. I want to add one task after T2 and make T6 wait for it.</p>
+      ${planRows([tk('T7'),{...tk('T6'),deps:['T3','T4','T5','T7']}],['T7'],{T6:1})}
+      <div class="small muted">Ops: <code>add</code> T7 · <code>rewire</code> T6 (adds T7 to its dependencies)</div>
+      <div class="btns"><button class="btn primary" data-act="plan-approve">${ic('check','sm')}Approve v2</button><button class="btn" data-act="panel" data-tab="plan">${ic('edit','sm')}Edit plan</button><button class="btn ghost" data-act="plan-reject">Reject</button></div>
+    </div></div>`;
+}
+function bAsk(b){
+  const m=mail(b.id);
+  if(m.state==='answered') return `<div class="card" ${wa('C12')}><div class="card-h">${ic('reply','sm')}<b>Answered</b><span class="muted">coder-1’s question · ${m.answeredAt}</span></div>
+    <div class="card-b"><p class="small muted">${esc(m.text)}</p><div class="resolved">You: <b>${esc(m.answer)}</b> · delivered to coder-1 (Enqueue) at seq ${fmt(m.answerSeq)}</div></div></div>`;
+  return `<div class="card needs" data-needs="1" ${wa('C12')}>
+    <div class="card-h">${glyph('need')}<b>Needs your answer</b><span class="muted">${dot('coder-1')}coder-1 asked orchestrator · orchestrator forwarded it · ${m.time}</span></div>
+    <div class="card-b">
+      <p class="q">${esc(m.text)}</p>
+      <p class="small muted">orchestrator: “This is a security-policy call, so I’m forwarding it. coder-1 keeps working on AuthState wiring meanwhile.”</p>
+      <div class="btns">
+        <button class="btn" data-act="answer" data-v="Accept RS256 and ES256; reject none and HS*">Accept RS256 + ES256</button>
+        <button class="btn" data-act="answer" data-v="Pin to RS256 only">RS256 only</button>
+        <button class="btn ghost" data-act="reply-open">${ic('reply','sm')}Write a reply</button>
+      </div>
+      <div class="reply" id="replyBox" hidden><input id="replyInput" placeholder="Your answer goes to coder-1" aria-label="Reply to coder-1"><button class="btn primary" data-act="reply-send">Send</button></div>
+    </div></div>`;
+}
+function bAskOut(b){
+  const m=mail(b.id);
+  return `<div class="card" ${wa('C21')}><div class="card-h">${ic('help','sm')}<b>Asked orchestrator</b><span class="kind ask">ask</span><span class="muted">${m.time} · ask tool, wait 60 s then continue</span></div>
+    <div class="card-b"><p class="small" style="color:var(--fg)">${esc(m.text)}</p>
+    <div class="resolved">${m.state!=='answered'
+      ? `${glyph('wait')} No answer within 60 s, so the tool returned and coder-1 continued. orchestrator forwarded the question to the user; the answer will arrive as a message.`
+      : `${glyph('done')} Answer from you: <b>${esc(m.answer)}</b>`}</div></div></div>`;
+}
+function bPerm(b){
+  const p=PERMS[b.id];
+  const dl = `<dl class="detail-grid"><dt>kind</dt><dd>shell</dd><dt>intention</dt><dd>${esc(p.intention)}</dd><dt>possible paths</dt><dd>${p.paths.join(', ')}</dd><dt>session approval offered</dt><dd>${p.sessionOk?'yes':'no'}</dd><dt>worktree</dt><dd>${p.wt} (harness/r12/coder-2-T5)</dd></dl>`;
+  if(p.state==='timed_out') return `<div class="card needs" data-needs="1" ${wa('C13')}>
+    <div class="card-h">${ic('shield','sm')}<b>${dot(p.agent)} ${p.agent} · auto-denied after 90 s</b><span class="spacer"></span><span class="muted mono" style="font-size:12px">${p.wt}</span></div>
+    <div class="card-b"><div class="cmd">$ ${esc(p.cmd)}</div>
+      <p class="small muted">No answer arrived within 90 s, so the harness replied <code>reject</code> with “waiting for user approval; you will be told when to retry”. The request stays here.</p>
+      <div class="btns end"><button class="btn ghost" data-act="perm" data-v="keep">Keep denied</button><button class="btn primary" data-act="perm" data-v="retry">Approve &amp; tell ${p.agent} to retry</button></div></div></div>`;
+  if(p.state!=='open') return `<div class="card" ${wa('C13')}><div class="card-h">${ic('shield','sm')}<b>${p.agent} · ${esc(p.cmd)}</b><span class="spacer"></span><span class="pill ${p.state.startsWith('denied')?'':'ok'}">${p.label}</span></div></div>`;
+  const mm=Math.floor(p.left/60), ss=String(p.left%60).padStart(2,'0');
+  return `<div class="card needs" data-needs="1" ${wa('C13')}>
+    <div class="card-h">${ic('shield','sm')}<b>${dot(p.agent)} ${p.agent} wants to run a command</b><span class="spacer"></span><span class="countdown" id="permCountdown">${glyph('wait')}auto-denies in ${mm}:${ss}</span></div>
+    <div class="card-b">
+      <p class="small muted">${esc(p.intention)}.</p>
+      <div class="cmd">$ ${esc(p.cmd)}</div>
+      <details><summary>Show details</summary>${dl}</details>
+      <div class="btns end">
+        <button class="btn ghost danger" data-act="perm" data-v="deny">Deny <kbd>Alt+⌫</kbd></button>
+        <button class="btn" data-act="perm" data-v="always">Always allow in ${p.wt}</button>
+        <button class="btn primary" data-act="perm" data-v="once">Allow once <kbd>Alt+↵</kbd></button>
+      </div>
+    </div></div>`;
+}
+function bMail(b){
+  const m=mail(b.id);
+  return `<div class="mail-row" ${wa('C14')}>${ic('mail','sm')}<div style="min-width:0">
+    <div class="mr-h">${dot(m.from)}<b>${who(m.from)}</b>→${dot(m.to)}<b>${who(m.to)}</b><span class="kind ${m.kind}">${m.kind}</span><span ${wa('D10')}>${m.time} · ${deliveryText(m)}</span></div>
+    <div class="mr-t">${esc(m.text)}</div></div></div>`;
+}
+function bSteer(b){
+  const m=mail(b.id);
+  const ok = m.state==='in_context' ? `<span class="ok">${ic('check','xs')}</span>` : m.state==='withdrawn' ? '' : glyph('wait');
+  return `<div class="msg-user" ${wa('C15')}><div class="to-label">To ${dot(m.to)}<b style="color:var(--fg)">${m.to}</b><span class="kind steer">steer</span></div><div class="bubble">${esc(m.text)}</div><div class="msg-time" ${wa('D10')}>${m.time} · ${ok}${deliveryText(m)}${m.seq?` · seq ${fmt(m.seq)}`:''}</div></div>`;
+}
+function bCompact(b){ return `<div class="divider" ${wa('C16')}><div class="dv"><b>${ic('layers','sm')}${b.head}</b><span>${b.sub}</span></div></div>`; }
+function bRotate(b){ return `<div class="divider" ${wa('C17')}><div class="dv"><b>${ic('rotate','sm')}${b.head}</b><span>${b.sub}</span></div></div>`; }
+function bBrief(b){
+  return `<div class="brief" ${wa('C18')}><div class="br-h">${dot(b.from)}<b>Task brief from ${b.from}</b><span class="tid">${b.task}</span><span class="kind">directive</span><span>${b.time}</span></div>
+    <div class="br-t">${b.text}</div><div class="br-m">${esc(b.ctx)}</div></div>`;
+}
+function bScratch(b){
+  const L=SCRATCH[b.agent], d=L.filter(x=>x[1]===1).length;
+  return `<div class="scratch" ${wa('C19')}><div class="sc-h">${ic('tasks','sm')}<b>Private checklist</b><span>${b.agent} only · not on the task board</span><span class="spacer"></span><span>${d}/${L.length}</span></div>
+    <ul>${L.map(([t,s])=>`<li class="${s===1?'d':''}"><span class="cb ${s===1?'d':s===2?'p':''}">${s===1?ic('check','xs'):''}</span>${esc(t)}</li>`).join('')}</ul></div>`;
+}
+function bDiff(){
+  return `<div class="card" ${wa('C20')}><div class="card-h">${ic('file','sm')}<span class="mono" style="font-size:12.5px;color:var(--fg)">src/auth/oidc.rs</span><span ${wa('D9')}><span class="plus">+31</span> <span class="minus">−44</span></span><span class="spacer"></span><span class="muted" style="font-size:12px">this edit vs previous snapshot · wt/coder-1</span></div>
+    <div class="diff">${DIFF.map(([k,n,l])=>`<div class="${k==='+'?'a':k==='-'?'r':k==='h'?'h':''}"><span class="ln">${n}</span><span class="sg2">${k==='h'||k===' '?'':k}</span><span>${esc(l)}</span></div>`).join('')}</div></div>`;
+}
+function bStream(b){
+  const done=b.text.length>=b.full.length;
+  return `<div class="msg-asst"><div class="ah" ${wa('C3')}>${dot(b.agent)}<b>${b.agent}</b><span class="pill role">${AG[b.agent].role}</span><span class="muted">${AG[b.agent].model}</span>${done?'':'<span class="muted">· streaming</span>'}</div>
+    <div class="md" ${wa('C22')}><p><span id="streamText">${esc(b.text)}</span>${done?'':'<span class="caret" id="caret"></span>'}</p></div></div>`;
+}
+function bResult(b){ return `<div class="divider" ${wa('C23')}><div class="dv"><b>${ic('reply','sm')}Result returned to parent</b><span>${esc(b.text)}</span></div></div>`; }
+function bIdle(b){ return `<div class="idle-note" ${wa('C24')}>${glyph('idle')}${esc(b.text)}</div>`; }
+function renderBlock(b){
+  switch(b.t){
+    case 'user':return bUser(b); case 'asst':return bAsst(b); case 'task':return bTask(b);
+    case 'plan1':return bPlan1(); case 'replan':return bReplan(); case 'ask':return bAsk(b);
+    case 'askout':return bAskOut(b); case 'perm':return bPerm(b); case 'mail':return bMail(b);
+    case 'steer':return bSteer(b); case 'compact':return bCompact(b); case 'rotate':return bRotate(b);
+    case 'brief':return bBrief(b); case 'scratch':return bScratch(b); case 'diff':return bDiff();
+    case 'stream':return bStream(b); case 'result':return bResult(b); case 'idle':return bIdle(b); default:return '';
+  }
+}
+function statusLine(){
+  const v=state.view, A=AG[v];
+  if(v==='orchestrator'){
+    const w=ORDER.filter(a=>a!=='orchestrator'&&['running','permission','input'].includes(AG[a].status));
+    return `<div class="statusline" ${wa('C25')}>${glyph('wait')}orchestrator is waiting on ${w.join(' and ')||'no one'}${needsCount()?` · ${needsCount()} item${needsCount()>1?'s':''} need you`:''}</div>`;
+  }
+  return `<div class="statusline" ${wa('C25')}>${glyph(ST[A.status].g)}${v}: ${ST[A.status].l.toLowerCase()}${A.step&&A.status==='running'?` · step ${A.step[0]} of ${A.step[1]}`:''}</div>`;
+}
+function renderThread(keep){
+  const sc=$('#scroll'), prev=sc.scrollTop;
+  let h = state.view==='orchestrator' ? `<button class="older" data-act="older" ${wa('C1')}>${ic('layers','sm')}1,214 earlier events · load older from the harness log</button>` : '';
+  h += (T[state.view]||[]).map(renderBlock).join('') + statusLine();
+  $('#thread').innerHTML=h;
+  sc.scrollTop = keep ? prev : sc.scrollHeight;
+}
+
+/* ======================= composer ======================= */
+function renderComposer(){
+  const tgt=state.target, A=AG[tgt], running=A.status==='running';
+  $('#cstrip').innerHTML = `<span ${wa('K1')} style="display:inline-flex;gap:8px;align-items:center">${ic('branch','sm')}<span>3 worktrees · 7 files changed</span><span class="plus">+312</span><span class="minus">−88</span></span>`;
+  const q=MAIL.filter(m=>m.from==='you'&&m.state==='submitted');
+  $('#qstrip').innerHTML = q.length ? q.map(m=>`<div class="qstrip" ${wa('K2')}>${glyph('wait')}<span>Queued for ${dot(m.to)}<b>${m.to}</b></span><span class="qt">“${esc(m.text)}”</span>
+      <button class="btn xs" data-act="sendnow" data-id="${m.id}">Send now</button><button class="btn xs ghost" data-act="retract" data-id="${m.id}">Retract</button></div>`).join('') : '';
+  const hint = tgt==='orchestrator'
+    ? (A.status==='waiting'?'orchestrator is idle; this starts a new turn and can create, edit or re-plan tasks':'')
+    : running ? (state.steer?`${tgt} is mid-turn; this steers its current turn`:`${tgt} is mid-turn; queued for its next turn`)
+    : `${tgt} is ${ST[A.status].l.toLowerCase()}; this starts a new turn`;
+  $('#cto').innerHTML = `<span>To</span><button class="to-btn" data-act="menu" aria-haspopup="true" aria-expanded="${state.menu}" ${wa('K3')}>${dot(tgt)}${tgt}${ic('down','sm')}</button>
+    <span class="to-hint" ${wa('K4')}>${hint}</span>
+    ${running && tgt!=='orchestrator' ? `<label class="toggle" ${wa('K5')} title="On: DeliveryMode::Immediate. Off: DeliveryMode::Enqueue."><input type="checkbox" id="steerToggle" ${state.steer?'checked':''}>Steer now</label>` : ''}`;
+  $('#input').placeholder = `Message ${tgt}…  @ to address an agent · / commands · ! shell`;
+  $('#cbar').innerHTML = `
+    <button class="ibtn" data-act="demo" aria-label="Attach files" ${wa('K7')}>${ic('pluscircle')}</button>
+    <span class="chip on" ${wa('K8')} title="Plans and re-plans wait for your approval">${ic('gate','sm')}<span class="hide-m">Plan gate: you approve</span></span>
+    <span class="spacer"></span>
+    <span class="chip" ${wa('K9')}>${ic('key','sm')}${A.model}</span>
+    <span class="pill role" ${wa('K10')}>${A.role}</span>
+    <button class="send" data-act="send" aria-label="Send" ${wa('K11')}>${ic('send')}</button>`;
+  const m=$('#tomenu'); m.hidden=!state.menu;
+  if(state.menu) m.innerHTML = `<div class="menu-h">Send to</div>` + ORDER.filter(a=>!['done','cancelled'].includes(AG[a].status)).map(a=>`<button data-act="target" data-agent="${a}" class="${a===tgt?'on':''}">${dot(a)}${a}<span class="tid">${AG[a].task||'lead'}</span>${sp(AG[a].status)}</button>`).join('');
+}
+
+/* ======================= panel ======================= */
+const TABS = [['agents','users','Agents'],['tasks','tasks','Task board'],['plan','plan','Plan'],['mail','mail','Mailbox'],['log','pulse','Event log'],['git','branch','Worktrees']];
+function pAgents(){
+  const row = a => { const A=AG[a]; const arm=state.stopArm===a; const live=!['done','cancelled'].includes(A.status);
+    return `<div class="arow ${state.view===a?'sel':''}" data-act="open" data-agent="${a}" role="button" tabindex="0" aria-label="Open ${a}" ${wa('A2')}>
+      <div class="ar-top">${dot(a)}<b>${a}</b><span class="tid">${A.task||'lead'}</span><span class="gen">gen ${A.gen}</span>${sp(A.status)}</div>
+      <div class="ar-act" ${wa('D2')}>${esc(A.act)}</div>
+      <div class="ar-meta"><div class="m">${meter(A.ctx)}</div><span>${A.ctx}%</span><span class="hide-m">${A.model}</span>
+        ${live?`<span class="ar-btns"><button class="ibtn" data-act="msg" data-agent="${a}" aria-label="Message ${a}">${ic('msg','sm')}</button>${a!=='orchestrator'?`<button class="ibtn" data-act="stop" data-agent="${a}" aria-label="${arm?'Confirm stop':'Stop'} ${a}" style="${arm?'color:var(--err)':''}">${ic('stop','sm')}</button>`:''}</span>`:''}
+      </div></div>`; };
+  const c = {run:ORDER.filter(a=>AG[a].status==='running').length, need:ORDER.filter(a=>ST[AG[a].status].w).length, idle:ORDER.filter(a=>['idle'].includes(AG[a].status)).length};
+  return `<div class="summary" ${wa('A1')}><span class="chip">${glyph('run')}${c.run} running</span><span class="chip warn">${glyph('need')}${c.need} blocked on you</span><span class="chip">${glyph('idle')}${c.idle} idle</span></div>
+    <div class="p-h" ${wa('A3')}>Team · long-lived sessions</div>
+    ${['orchestrator','coder-1','coder-2','tester'].map(row).join('')}
+    <div class="p-h" ${wa('A3')}>Subagents · quick</div>
+    ${row('explorer')}
+    <p class="p-note">Bars show context used by the current Copilot session. Ticks: background compaction (80%, or 250k tokens on larger windows) and the blocking limit (95%). gen = session generation; a new generation is a rescue after failed compaction, failed resume or a 256 MiB session, never a schedule.</p>
+    <div class="p-h">Tasks<span class="spacer"></span><button class="btn xs ghost" data-act="panel" data-tab="tasks">Open board</button></div>
+    <div class="tcol" ${wa('A4')}>${TASKS.map(t=>`<div class="trow"><span class="tid">${t.id}</span>${glyph(TST[tdisp(t)].g)}<span class="tt">${esc(t.title)}</span><span class="own">${t.owner?dot(t.owner)+t.owner:'—'}</span></div>`).join('')}</div>`;
+}
+function depth(t,memo={}){ if(memo[t.id]!=null) return memo[t.id]; return memo[t.id]=t.deps.length?1+Math.max(...t.deps.map(d=>depth(tk(d),memo))):0; }
+function pGraph(){
+  const vis=TASKS.filter(t=>t.st!=='cancelled'), memo={}, rows={};
+  vis.forEach(t=>{const d=depth(t,memo);(rows[d]=rows[d]||[]).push(t);});
+  const W=320, NW=142, NH=44, RG=30, pos={};
+  Object.keys(rows).forEach(d=>{ const r=rows[d], gap=(W-r.length*NW)/(r.length+1); r.forEach((t,i)=>pos[t.id]={x:gap+i*(NW+gap),y:8+d*(NH+RG)}); });
+  const H=8+(Math.max(...Object.keys(rows).map(Number))+1)*(NH+RG)-RG+8;
+  let edges='';
+  vis.forEach(t=>t.deps.forEach(d=>{ if(!pos[d]) return; const a=pos[d], b=pos[t.id];
+    const x1=a.x+NW/2, y1=a.y+NH, x2=b.x+NW/2, y2=b.y, my=(y1+y2)/2;
+    edges+=`<path class="g-edge ${t.st==='proposed'?'prop':''}" d="M${x1} ${y1} C${x1} ${my} ${x2} ${my} ${x2} ${y2}"/>`; }));
+  const nodes=vis.map(t=>{ const p=pos[t.id], s=tdisp(t);
+    return `<g class="g-node ${s==='in_progress'?'in_progress':s==='done'?'done':s==='proposed'?'proposed':''}" transform="translate(${p.x} ${p.y})" data-act="task" data-task="${t.id}" tabindex="0" role="button" aria-label="${t.id} ${esc(t.title)}, ${TST[s].l}">
+      <rect width="${NW}" height="${NH}" rx="7"/><text class="gid" x="9" y="17">${t.id}</text><text class="go" x="${NW-9}" y="17" text-anchor="end">${TST[s].l}</text>
+      <text class="gt" x="9" y="34">${esc(t.title.length>21?t.title.slice(0,20)+'…':t.title)}</text></g>`; }).join('');
+  return `<div class="graph" ${wa('T2')}><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Task dependency graph">${edges}${nodes}</svg></div>
+    <div class="legend" ${wa('D4')}>${['done','in_progress','ready','waiting','proposed'].map(k=>`<span>${glyph(TST[k].g)}${TST[k].l}</span>`).join('')}</div>`;
+}
+function pTasks(){
+  const groups=[['in_progress','In progress'],['ready','Ready'],['waiting','Waiting on dependencies'],['blocked','Blocked'],['proposed','Proposed'],['done','Done']];
+  const list = groups.map(([k,l])=>{ const ts=TASKS.filter(t=>tdisp(t)===k); if(!ts.length) return '';
+    return `<div class="p-h">${l} · ${ts.length}</div><div class="tcol" ${wa('T3')}>${ts.map(t=>`<div class="trow" style="row-gap:2px"><span class="tid">${t.id}</span>${glyph(TST[k].g)}<span class="tt">${esc(t.title)}</span><span class="own">${owner(t)}</span>
+      <span class="tdet">${t.deps.length?`after ${t.deps.join(', ')} · `:''}${esc(t.acc)}</span></div>`).join('')}</div>`; }).join('');
+  const approved = PLAN.v2.state==='approved'?2:1;
+  return `<div class="p-h" ${wa('T1')}>Plan v${approved} · ${TASKS.filter(t=>t.st==='done').length}/${TASKS.filter(t=>!['proposed','cancelled'].includes(t.st)).length} done<span class="spacer"></span>
+      <span class="seg"><button class="${state.taskView==='graph'?'on':''}" data-act="taskview" data-v="graph">${ic('graph','sm')}Graph</button><button class="${state.taskView==='list'?'on':''}" data-act="taskview" data-v="list">${ic('list','sm')}List</button></span></div>
+    ${state.taskView==='graph'?pGraph():list}
+    <p class="p-note">One board per run. Agents change it only through task_claim, task_update, task_complete and task_block; adding, removing or rewiring tasks goes through a plan version you approve.</p>`;
+}
+function pPlan(){
+  return `<div class="plan-doc" ${wa('P1')}>
+    <div class="file">.harness/runs/r12/plan/v${PLAN.v2.state==='approved'?2:1}.md · mirrored to the orchestrator session with plan.update</div>
+    <h3>Migrate auth to OIDC</h3>
+    <h4>Goal</h4><div>Replace cookie sessions with OIDC (Okta) Bearer tokens on payments-api.</div>
+    <h4>Constraints</h4><ul><li>/v1 request and response contract stays unchanged.</li><li>Cookie auth stays behind the <code>legacy-auth</code> flag for one release.</li><li>Writers work only in their own worktree; a reviewer merges.</li></ul>
+    <h4>Tasks</h4>${planRows(TASKS.filter(t=>t.st!=='cancelled'), PLAN.v2.state==='open'?['T7']:[])}
+  </div>
+  <div class="p-h">Versions</div>
+  <div class="vers" ${wa('P2')}>
+    <div class="ver"><span class="tid">v1</span>Drafted by orchestrator in plan mode<span class="spacer"></span><span class="pill ok">${ic('check','xs')}Approved ${PLAN.v1.at}</span></div>
+    <div class="ver"><span class="tid">v2</span>+T7, T6 rewired<span class="spacer"></span>${PLAN.v2.state==='open'?'<span class="pill warn">Awaiting approval</span>':`<span class="pill ${PLAN.v2.state==='approved'?'ok':''}">${PLAN.v2.state==='approved'?'Approved':'Rejected'} ${PLAN.v2.decidedAt}</span>`}</div>
+  </div>
+  ${PLAN.v2.state==='open'?`<div class="btns" ${wa('P3')}><button class="btn primary" data-act="plan-approve">${ic('check','sm')}Approve v2</button><button class="btn" data-act="demo">${ic('edit','sm')}Edit as markdown</button><button class="btn ghost" data-act="plan-reject">Reject</button></div>`:''}`;
+}
+function pMail(){
+  const F=[['all','All'],['ask','Asks'],['steer','Steering'],['peer','Peer'],['directive','Directives'],['notify','Notifications']];
+  const items=MAIL.filter(m=>state.mailFilter==='all'||m.kind===state.mailFilter||(state.mailFilter==='ask'&&m.kind==='answer')).slice().reverse();
+  return `<div class="filters" ${wa('M1')}>${F.map(([k,l])=>`<button class="${state.mailFilter===k?'on':''}" data-act="mailf" data-v="${k}">${l}</button>`).join('')}</div>
+    ${items.map(m=>`<div class="mitem" ${wa('M2')}><div class="mi-h">${dot(m.from)}<b>${who(m.from)}</b>→${dot(m.to)}<b>${who(m.to)}</b><span class="kind ${m.kind}">${m.kind}</span><span class="spacer"></span><span>${m.time}</span></div>
+      <div class="mi-t">${esc(m.text)}</div>
+      <div class="mi-f">${m.state==='held'||m.state==='submitted'?glyph('wait'):glyph('done')}${deliveryText(m)} · seq ${fmt(m.seq)}</div></div>`).join('')}
+    <p class="p-note">Every message is a durable event. Peer messages are held and delivered as one digest when the recipient is next woken.</p>`;
+}
+function pLog(){
+  const pct=Math.round(state.win/4096*100);
+  return `<div class="stats">
+      <div class="stat" ${wa('E1')}><div class="k">Durable log head</div><div class="v">seq ${fmt(state.seq)}</div><div class="s">this client is in sync</div></div>
+      <div class="stat" ${wa('E2')}><div class="k">On disk</div><div class="v">62.4 MB</div><div class="s">1 segment · 3 snapshots · blobs</div></div>
+      <div class="stat" ${wa('E3')}><div class="k">UI window</div><div class="v">${fmt(state.win)} / 4,096</div><div class="s">older events re-fetched on scroll</div></div>
+      <div class="stat" ${wa('E4')}><div class="k">Lag</div><div class="v">0 resyncs</div><div class="s">SDK live path lagged once (coder-1, 37 events); event_log read filled the gap</div></div>
+    </div>
+    <div class="p-h">UI window</div>
+    <div class="mrow" ${wa('E3')}><span class="lab">${ic('layers','sm')}in memory</span><div class="meter"><i style="width:${pct}%"></i></div><span class="val">${pct}%</span></div>
+    <div class="p-h">Context per agent session</div>
+    ${ORDER.filter(a=>AG[a].ctx>0).map(a=>`<div class="mrow" ${wa('E5')}><span class="lab">${dot(a)}${a}</span>${meter(AG[a].ctx)}<span class="val">${AG[a].ctx}%</span></div>`).join('')}
+    <p class="p-note">Context compaction (what the model sees) and log compaction (what is stored) are separate. orchestrator compacted once at 80% and kept its session; coder-1 was moved to generation 2 after two failed compactions.</p>
+    <div class="p-h">Files</div>
+    <div class="segs" ${wa('E6')}>
+      <div><span class="n" title="seg-00000000000000000001.jsonl">seg-00000000000000000001.jsonl</span><span class="z">41.3 MB</span><span class="pill ok">active</span></div>
+      <div><span class="n">snap-00000000000000020000.bin</span><span class="z">1.9 MB</span><span class="pill">snapshot</span></div>
+      <div><span class="n">snap-00000000000000030000.bin</span><span class="z">2.4 MB</span><span class="pill">snapshot</span></div>
+      <div><span class="n">snap-00000000000000040000.bin</span><span class="z">2.9 MB</span><span class="pill">snapshot</span></div>
+      <div><span class="n">index.bin (every 1,024th seq)</span><span class="z">0.4 MB</span><span class="pill">index</span></div>
+      <div><span class="n">blobs/ (14 payloads &gt; 8 KiB)</span><span class="z">13.5 MB</span><span class="pill">blobs</span></div>
+    </div>
+    <div class="p-h">Live tail · last 10 of ${fmt(state.seq)}</div>
+    <div class="tail" id="tail" ${wa('E7')}>${EVENTS.slice(0,10).map((e,i)=>`<div class="${i===0&&state.newRow?'new':''}"><span class="s1">${e[0]}</span><span class="s2" style="color:var(${AG[e[1]]?AG[e[1]].c:'--muted'})">${e[1]}</span><span class="s3">${e[2]}</span><span class="s4">${esc(e[3])}</span></div>`).join('')}</div>
+    <p class="p-note">Dotted names are Copilot SDK event types (Origin::Copilot); snake_case names are harness events. delta_batch frames are ephemeral and never stored.</p>`;
+}
+function pGit(){
+  const wt=(a,files)=>`<div class="wt" ${wa('G2')}><div class="wt-h">${ic('branch','sm')}<b>${AG[a].branch}</b>${dot(a)}<span class="muted">${a}</span><span class="spacer"></span><span class="muted mono" style="font-size:11.5px">${AG[a].where}</span></div>
+    ${files.length?files.map(([s,p,ad,dl])=>`<div class="wt-f"><span class="st" style="color:var(${s==='A'?'--ok':'--warn'})">${s}</span><span class="p">${p}</span><span><span class="plus">+${ad}</span> <span class="minus">−${dl}</span></span></div>`).join(''):'<div class="small muted">No changes yet.</div>'}</div>`;
+  return `<div class="p-h" ${wa('G1')}>Agent worktrees · base main @ 9c41e0a</div>
+    ${wt('coder-1',[['M','Cargo.toml',2,0],['A','src/auth/oidc.rs',73,0],['M','src/auth/mod.rs',14,2],['M','src/auth/state.rs',12,3]])}
+    ${wt('coder-2',[['M','src/config.rs',42,9],['M','README.md',28,0],['M','.env.example',6,4]])}
+    ${wt('tester',[])}
+    <p class="p-note">Readers (orchestrator, explorer) use the main checkout read-only. The reviewer merges agent branches in dependency order when T6 starts.</p>`;
+}
+function renderPanel(keep){
+  const body=$('#panel .p-body'), prev=body?body.scrollTop:0;
+  const tab=TABS.find(t=>t[0]===state.panel);
+  const content = {agents:pAgents,tasks:pTasks,plan:pPlan,mail:pMail,log:pLog,git:pGit}[state.panel]();
+  $('#panel').innerHTML = `<div class="p-head"><h2>${ic(tab[1])}${tab[2]}</h2><span class="spacer"></span><button class="ibtn" data-act="close-panel" aria-label="Close panel">${ic('x')}</button></div>
+    <div class="p-tabs-m">${TABS.map(t=>`<button class="${t[0]===state.panel?'on':''}" data-act="panel" data-tab="${t[0]}">${t[2]}</button>`).join('')}</div>
+    <div class="p-body">${content}</div>`;
+  if(keep) $('#panel .p-body').scrollTop=prev;
+}
+function renderRail(){
+  const mailN=MAIL.filter(m=>(m.kind==='ask'&&m.state!=='answered'&&m.forwarded)||(m.from==='you'&&['held','submitted'].includes(m.state))).length;
+  $('#rail').innerHTML = TABS.map(([k,i,l])=>`<button class="rbtn ${state.panelOpen&&state.panel===k?'on':''}" data-act="rail" data-tab="${k}" aria-label="${l}" title="${l}" ${wa('R1')}>${ic(i)}${k==='mail'&&mailN?`<span class="badge" ${wa('R2')}>${mailN}</span>`:''}${k==='tasks'&&PLAN.v2.state==='open'?`<span class="badge" ${wa('R3')}>1</span>`:''}</button>`).join('')
+    + `<span class="sep"></span><button class="rbtn" data-act="demo" aria-label="Terminal" title="Terminal">${ic('term')}</button>`;
+}
+function renderAll(keep){
+  app.classList.toggle('panel-open',state.panelOpen);
+  app.classList.toggle('side-open',state.sideOpen);
+  app.classList.toggle('wiring',state.wiring);
+  renderSidebar(); renderTop(); renderThread(keep); renderComposer(); renderPanel(keep); renderRail();
+}
+
+/* ======================= wiring popover ======================= */
+function fmtW(s){
+  let h=esc(s);
+  h=h.replace(/\b([SHCKATPMEGRDX]\d{1,2})\b/g,(m,id)=>WIRING[id]?`<button class="wlink" data-wlink="${id}">${id}</button>`:m);
+  return h.replace(/`([^`]+)`/g,'<code>$1</code>');
+}
+function showWire(id){
+  const w=WIRING[id]; if(!w) return;
+  const ev=w.updates.length?w.updates.map(u=>`<code>${u==='*'?'every event':u.startsWith('copilot:')?u.slice(8)+' (Copilot)':u}</code>`).join(''):'<span class="muted">none</span>';
+  const p=$('#wpop');
+  p.innerHTML = `<div class="wp-h"><span class="wid">${w.id}</span><b>${esc(w.element)}</b><span class="spacer"></span><span class="wst">${w.status}</span><button class="ibtn" data-wclose="1" aria-label="Close">${ic('x')}</button></div>
+    <div class="wp-k">${esc(w.surface)} · ${esc(w.kind)}</div>
+    <div class="wp-sec"><span>Shows</span><div>${fmtW(w.shows)}</div></div>
+    <div class="wp-sec"><span>Data source</span><div>${fmtW(w.source)}</div></div>
+    <div class="wp-sec"><span>Updated by</span><div class="wp-ev">${ev}</div></div>
+    ${w.action?`<div class="wp-sec"><span>User action → effect</span><div>${fmtW(w.action)}</div></div>`:''}
+    ${w.refs.length?`<div class="wp-sec"><span>SDK source @ ${WIRING_META.commit?WIRING_META.commit.slice(0,7):''}</span><div class="wp-refs">${w.refs.map(r=>`<a href="${r.href}" target="_blank" rel="noopener">${esc(r.label)} → ${esc(r.href.split('/rust/src/')[1]||r.href)}</a>`).join('')}</div></div>`:''}
+    <div class="wp-k">${esc((WIRING_META.legend||{})[w.status.split('+')[0]]||'')}</div>`;
+  p.hidden=false;
+}
+
+/* ======================= actions ======================= */
+const app=$('#app');
+const now=()=>new Date().toTimeString().slice(0,5);
+function logEvent(src,type,detail){ state.seq++; EVENTS.unshift([state.seq,src,type,detail]); EVENTS.length=Math.min(EVENTS.length,12); state.win=Math.min(4096,state.win+1); return state.seq; }
+const narrow=()=>matchMedia('(max-width:1180px)').matches;
+function openAgent(a){ state.view=a; state.target=a; state.sideOpen=false; state.menu=false; state.stopArm=null; if(state.panelOpen&&matchMedia('(max-width:860px)').matches) state.panelOpen=false; renderAll(false); }
+
+function send(){
+  const el=$('#input'); let text=el.value.trim(); if(!text) return;
+  let tgt=state.target; const at=text.match(/^@([\w-]+)\s+/);
+  if(at && AG[at[1]]){ tgt=at[1]; text=text.slice(at[0].length); }
+  el.value='';
+  if(tgt==='orchestrator'){
+    T.orchestrator.push({t:'user',time:now(),text});
+    logEvent('orchestrator','user_message','delivery: idle (starts a turn)');
+    renderAll(false);
+    setTimeout(()=>{ T.orchestrator.push({t:'asst',agent:'orchestrator',md:'<p>Noted. I’ll fold this into the next task update and tell the affected teammates.</p>',meta:['4.1s','0.9k tokens']}); renderAll(state.view!=='orchestrator'); },1100);
+    return;
+  }
+  const A=AG[tgt], running=A.status==='running', steer=running&&state.steer;
+  const id='u'+Date.now();
+  const seq=logEvent('harness','mail_created',`you → ${tgt} · steer · ${steer?'Immediate':'Enqueue'}`);
+  MAIL.push({id,from:'you',to:tgt,kind:'steer',time:now(),seq,state:'submitted',text});
+  T[tgt].push({t:'steer',id}); T.orchestrator.push({t:'steer',id});
+  renderAll(false);
+  const land=(delivery)=>{ const m=mail(id); if(m.state!=='submitted') return; m.state='in_context'; m.delivery=delivery; m.seq=logEvent(tgt,'user.message',`delivery: ${delivery}`); renderAll(true); };
+  if(!running){ setTimeout(()=>land('idle'),700); if(A.status==='idle'){ A.status='running'; A.act='Reading your message'; setTimeout(()=>{ if(A.status==='running'){A.status='idle'; A.act='Idle: T4 waits on T2 and T3'; renderAll(true);} },4500);} }
+  else if(steer) setTimeout(()=>land('steering'),700);
+  else setTimeout(()=>land('queued'),8000);
+}
+function answer(v){
+  const m=mail('q1'); m.state='answered'; m.answer=v; m.answeredAt=now();
+  m.answerSeq=logEvent('harness','mail_created','answer → coder-1 · Enqueue');
+  MAIL.push({id:'a1',from:'you',to:'coder-1',kind:'answer',time:now(),seq:m.answerSeq,state:'in_context',delivery:'queued',text:v});
+  toast('Answer sent to coder-1');
+  renderAll(true);
+}
+function permDecide(v){
+  const p=PERMS.p1, A=AG['coder-2'];
+  if(v==='keep'){ p.state='denied_kept'; p.label='Denied (kept)'; A.status='idle'; A.act='Continuing without running tests'; logEvent('harness','permission','p1 · denied kept'); renderAll(true); return; }
+  if(v==='retry'){
+    p.state='approved_retry'; p.label='Approved after timeout · retry requested';
+    const seq=logEvent('harness','mail_created','directive → coder-2 · retry permitted command');
+    MAIL.push({id:'d9',from:'harness',to:'coder-2',kind:'directive',time:now(),seq,state:'in_context',delivery:'idle',text:'Permission granted for `cargo test -p auth --features oidc` in wt/coder-2. Retry it.'});
+  } else {
+    p.state = v==='deny'?'denied':'allowed';
+    p.label = v==='deny'?'Denied':v==='always'?'Always allowed in wt/coder-2 (ApproveForLocation)':'Allowed once (approve_once)';
+  }
+  logEvent('harness','permission',`p1 · ${p.label.toLowerCase()}`);
+  if(v==='deny'){ A.status='running'; A.act='Continuing without running tests'; renderAll(true); return; }
+  A.status='running'; A.act='Running cargo test -p auth --features oidc'; renderAll(true);
+  setTimeout(()=>{ A.act='cargo test passed (128 tests) · writing report'; A.step=[5,5]; SCRATCH['coder-2'][3][1]=1; SCRATCH['coder-2'][4][1]=2; logEvent('coder-2','tool.execution_complete','cargo test · success'); renderAll(true); },2600);
+}
+
+document.addEventListener('click',e=>{
+  const wl=e.target.closest('[data-wlink]'); if(wl){ showWire(wl.dataset.wlink); return; }
+  if(e.target.closest('[data-wclose]')){ $('#wpop').hidden=true; return; }
+  if(state.wiring && !e.target.closest('#wpop') && !e.target.closest('[data-act="wiring"]')){
+    const w=e.target.closest('[data-w]'); if(w){ e.preventDefault(); showWire(w.dataset.w); return; }
+  }
+  const el=e.target.closest('[data-act]'); if(!el) { if(state.menu&&!e.target.closest('#tomenu')){state.menu=false;renderComposer();} return; }
+  const act=el.dataset.act, a=el.dataset.agent;
+  if(act!=='stop' && state.stopArm){ state.stopArm=null; }
+  switch(act){
+    case 'open': openAgent(a); break;
+    case 'msg': state.target=a; state.menu=false; renderComposer(); $('#input').focus(); break;
+    case 'stop':
+      if(state.stopArm===a){ AG[a].status='cancelled'; AG[a].act='Stopped by you (abort + disconnect). Its tasks returned to pending.'; TASKS.filter(t=>t.owner===a&&t.st==='in_progress').forEach(t=>t.st='pending'); state.stopArm=null; logEvent('harness','agent_status',`${a} · cancelled`); toast(`${a} stopped`); }
+      else { state.stopArm=a; toast(`Click Stop again to stop ${a}`); }
+      renderAll(true); break;
+    case 'panel': state.panel=el.dataset.tab; state.panelOpen=true; state.sideOpen=false; renderAll(true); break;
+    case 'rail': if(state.panelOpen&&state.panel===el.dataset.tab) state.panelOpen=false; else { state.panel=el.dataset.tab; state.panelOpen=true; } renderAll(true); break;
+    case 'close-panel': state.panelOpen=false; renderAll(true); break;
+    case 'side': state.sideOpen=true; renderAll(true); break;
+    case 'close-overlays': state.sideOpen=false; renderAll(true); break;
+    case 'taskview': state.taskView=el.dataset.v; renderPanel(true); break;
+    case 'task': state.taskView='list'; renderPanel(false); break;
+    case 'mailf': state.mailFilter=el.dataset.v; renderPanel(true); break;
+    case 'toggle': state.openCards[el.dataset.card]=!state.openCards[el.dataset.card]; renderThread(true); break;
+    case 'menu': state.menu=!state.menu; renderComposer(); break;
+    case 'target': state.target=a; state.menu=false; renderComposer(); $('#input').focus(); break;
+    case 'send': send(); break;
+    case 'sendnow': { const m=mail(el.dataset.id); if(m&&m.state==='submitted'){ m.state='in_context'; m.delivery='steering'; m.seq=logEvent(m.to,'user.message','delivery: steering (queue.send_now)'); renderAll(true);} break; }
+    case 'retract': { const m=mail(el.dataset.id); if(m&&m.state==='submitted'){ m.state='withdrawn'; m.seq=logEvent('harness','mail_state',`${m.id} · withdrawn (queue.withdraw_message)`); renderAll(true);} break; }
+    case 'answer': answer(el.dataset.v); break;
+    case 'reply-open': $('#replyBox').hidden=false; $('#replyInput').focus(); break;
+    case 'reply-send': { const v=$('#replyInput').value.trim(); if(v) answer(v); break; }
+    case 'plan-approve': PLAN.v2.state='approved'; PLAN.v2.decidedAt=now(); tk('T7').st='pending'; tk('T6').deps.push('T7'); logEvent('orchestrator','plan_decided','v2 approved · T7 created · T6 rewired'); toast('Plan v2 approved · T7 added to the board'); renderAll(true); break;
+    case 'plan-reject': PLAN.v2.state='rejected'; PLAN.v2.decidedAt=now(); tk('T7').st='cancelled'; logEvent('orchestrator','plan_decided','v2 rejected'); renderAll(true); break;
+    case 'perm': permDecide(el.dataset.v); break;
+    case 'jump': {
+      state.view='orchestrator'; state.target='orchestrator'; renderAll(false);
+      const c=document.querySelector('#thread [data-needs]'); if(c){ c.scrollIntoView({block:'center'}); c.classList.add('flash'); setTimeout(()=>c.classList.remove('flash'),1500); }
+      break; }
+    case 'wiring': state.wiring=!state.wiring; if(!state.wiring) $('#wpop').hidden=true; else toast('Wiring on: click any labelled element'); renderAll(true); break;
+    case 'theme': document.documentElement.dataset.theme = isDark()?'light':'dark'; renderTop(); break;
+    case 'older': toast('Loads 200 older events from the harness log'); break;
+    case 'demo': toast('Placeholder in this mockup'); break;
+  }
+});
+document.addEventListener('change',e=>{ if(e.target.id==='steerToggle'){ state.steer=e.target.checked; renderComposer(); } });
+document.addEventListener('keydown',e=>{
+  if(e.target.id==='input' && e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+  if(e.target.id==='replyInput' && e.key==='Enter'){ const v=e.target.value.trim(); if(v) answer(v); }
+  if((e.key==='Enter'||e.key===' ') && e.target.matches('[role="button"][data-act]') && e.target.tagName!=='BUTTON'){ e.preventDefault(); e.target.click(); }
+  if(e.key==='Escape'){ state.menu=false; state.sideOpen=false; $('#wpop').hidden=true; renderComposer(); app.classList.remove('side-open'); }
+  if(e.altKey && e.key==='Enter' && PERMS.p1.state==='open'){ e.preventDefault(); permDecide('once'); }
+});
+
+/* ======================= live simulation ======================= */
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function finishStream(){ const A=AG['coder-1']; A.step=[5,7]; A.act='Spawning the JWKS refresh task'; SCRATCH['coder-1'][3][1]=1; SCRATCH['coder-1'][4][1]=2; }
+function streamTick(){
+  const b=T['coder-1'].find(x=>x.t==='stream'); if(!b||b.text.length>=b.full.length) return false;
+  const nx=b.full.indexOf(' ', b.text.length+1); b.text = nx<0 ? b.full : b.full.slice(0,nx);
+  const el=document.getElementById('streamText'); if(el) el.textContent=b.text;
+  if(b.text.length>=b.full.length){ finishStream(); logEvent('coder-1','assistant.message','final text · message_id 9f1e…'); renderAll(true); return false; }
+  return true;
+}
+if(reduce){ const b=T['coder-1'].find(x=>x.t==='stream'); b.text=b.full; finishStream(); }
+else { const st=setInterval(()=>{ if(!streamTick()) clearInterval(st); },140); }
+setInterval(()=>{
+  const s=SAMPLE[state.si++%SAMPLE.length]; logEvent(s[0],s[1],s[2]);
+  if(state.panelOpen&&state.panel==='log'){ state.newRow=!reduce; renderPanel(true); state.newRow=false; }
+},2000);
+setInterval(()=>{
+  const p=PERMS.p1; if(p.state!=='open') return;
+  p.left=Math.max(0,p.left-1);
+  const el=document.getElementById('permCountdown');
+  if(el) el.lastChild.nodeValue=`auto-denies in ${Math.floor(p.left/60)}:${String(p.left%60).padStart(2,'0')}`;
+  if(p.left===0){ p.state='timed_out'; const A=AG['coder-2']; A.status='idle'; A.act='Told to wait for your approval (auto-denied after 90 s)'; logEvent('harness','permission','p1 · auto-denied after 90 s · reject(feedback)'); renderAll(true); }
+},1000);
+
+state.panelOpen=!narrow();
+renderAll(false);
+</script>
+</body>
+</html>
