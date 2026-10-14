@@ -13,7 +13,7 @@ This spec is for the agent that implements the harness. It tells you what to bui
 | **[SV]** | Verified in Copilot SDK source at the pinned commit. The link goes to the exact lines. |
 | **[DOC]** | Taken from official docs. Not re-checked in source. |
 | **[INF]** | A design choice made by this spec. It is intentional, not a fact about Copilot. |
-| **[UNV]** | Depends on SDK behaviour that nobody has verified. Each one names a probe (V1–V18, section 11). Run the probe before code depends on it. |
+| **[UNV]** | Depends on SDK behaviour that nobody has verified. Each one names a probe (V1–V19, section 11). Run the probe before code depends on it. |
 | CLIENT / SAMPLE | UI-only state, or illustrative data in the mockup (section 10.6). |
 
 ## 1. Locked decisions
@@ -23,7 +23,7 @@ This spec is for the agent that implements the harness. It tells you what to bui
 | 1 | Layered topology: quick fire-and-forget subagents, plus long-lived teammates in team mode | `AgentKind::{Orchestrator, Quick, Teammate}` |
 | 2 | A plan the user approves produces one session-wide task DAG. Updates are incremental, never whole-list rewrites. Each agent may keep a private checklist. | Board actor (section 6). `todo_write` stays private. |
 | 3 | Messages flow in four directions: user → any agent, parent → running child, child → parent asks, peer ↔ peer | Mailbox (section 7) |
-| 4 | One Copilot SDK session per agent, all on one `Client`. The harness owns orchestration. | Native fleet, tasks and custom agents are not used (section 3). |
+| 4 | One Copilot SDK session per agent, all on one `Client`. The harness owns orchestration. | Native fleet, agent tasks and custom agents are not used (section 3). Background shells are tracked through `tasks()` (section 10.7). |
 | 5 | Each writing agent gets its own git worktree; readers share the main checkout | `Workspace::Worktree` |
 | 6 | The orchestrator drafts the plan in read-only plan mode. The user edits and approves it. Re-plans that add, remove or rewire tasks also need approval. | Section 6.2 |
 | 7 | The crash to eliminate is Copilot CLI/SDK session growth | Section 4. The 2026-10-13 review found that the reported failures are process heap exhaustion, very large logs (hundreds of MB), failing compaction and stalled event delivery, each with its own mitigation. |
@@ -116,11 +116,12 @@ All entries below were checked in the source at the pinned commit **[SV]** unles
 | Handoff helper | `rpc().history().summarize_for_handoff()` returns a Markdown summary "produced by an LLM" | **Not used.** It makes an extra model call; the last compaction's `summary_content` is already paid for (4.3). | [rpc.rs#L11022](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L11022) |
 | Built-in tool list | `rpc().tools().get_builtin_descriptors()` | Verb table; read-only exclusion lists. The names are **[UNV]** (V8). | [rpc.rs#L17586](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17586) |
 | Model | `Session::set_model`; event `session.model_change{new_model}` | Model chip | [session.rs#L1122](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L1122), [session_events.rs#L1591-L1647](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L1591-L1647) |
+| Background shells (experimental) | `rpc().tasks().list()` → `TaskShellInfo`; `get_progress({id})` → `TaskShellProgress{recent_output}`; `cancel({id})`; `remove({id})`; events `session.background_tasks_changed` (empty payload) and `tool.shell_output` (ephemeral) | Background tab and transcript cards (B1–B6); exit notices to the owner (10.7). Behaviour gaps are probe V19. | [rpc.rs#L17118](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17118), [api_types.rs#L29380-L29410](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L29380-L29410), [session_events.rs#L8349-L8352](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L8349-L8352) |
 
 **Do not use:**
 - `Session::get_events()` ([session.rs#L1084](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L1084)). It loads the whole timeline into one `Vec`.
 - `rpc().fleet().start`. It has no status or cancel.
-- `rpc().tasks()`.
+- `rpc().tasks()` for agents: `start_agent`, `send_message`, `promote_current_to_background` on agent tasks. The harness spawns its own sessions instead. The one exception is background **shells**, which are read and stopped through `tasks().list`, `get_progress`, `cancel` and `remove` (section 10.7).
 - Native `custom_agents` ([types.rs#L2272](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2272)).
 - `include_sub_agent_streaming_events: true`.
 - `resume_session` on a session whose workspace is at or above the RT4 size (section 4.3).
@@ -794,6 +795,12 @@ pub enum EventKind {
                  duration_ms: Option<u64>,                                  // compaction_tokens_used.duration
                  summary: Option<BlobRef> },                                // summary_content
     ModelChanged { model: String },
+    // ---- background shells (section 10.7) ----
+    BgJobStarted { job: JobId, task_id: String, tool_call_id: Option<String>, command: String,
+                   description: String, attachment: String, pid: Option<i64>, log_path: Option<String> },
+    BgJobOutput { job: JobId, stream: Option<String>, text: String },      // ephemeral only; text is appended to the job's tail blob
+    BgJobExited { job: JobId, status: String, exit_code: Option<i64>, duration_ms: u64, tail: BlobRef },
+    BgJobRemoved { jobs: Vec<JobId> },
     // ---- infrastructure ----
     Health { cli_rss_bytes: Option<u64>, workspace_bytes: Option<u64>, events_file_bytes: Option<u64>,
              lagged: Option<u64>, wait_polls: Option<u32> },
@@ -853,6 +860,8 @@ The AgentRuntime turns each Copilot `SessionEvent` it consumes into one envelope
 | `session.error`, `agent.interrupted` | `Health`, plus `AgentStatus` when the agent cannot continue | yes | — |
 | `session.shutdown` | `Health{events_file_bytes}` | yes | Calibrates RT4 against `workspace_bytes` |
 | `pending_messages.modified` † | `MailState` envelopes for every mail whose queue position changed, after `queue().pending_items()` reconciliation | yes | K2 |
+| `session.background_tasks_changed` | No envelope of its own. Triggers `tasks().list()` for that session; the diff becomes `BgJobStarted` / `BgJobExited` | via the diff | B1, section 10.7 |
+| `tool.shell_output` † | `BgJobOutput{job, stream, text}` when `tool_call_id` belongs to a background job; the text is appended to the job's tail blob | **no** (tail blob only) | B2; probe V19 |
 
 ## 10. UI wiring
 
@@ -871,6 +880,7 @@ The mockup's **Wiring** toggle labels every element with an ID from the tables b
 | `GET /api/runs/{run}/log/stats` | Head seq, file list and sizes, live-path lag counters | E1, E2, E4, E6 |
 | `GET /api/runs/{run}/worktrees` | Per worktree: `{branch, base_commit, files: [{status, path, added, removed}]}` | K1, G1, G2 |
 | `GET /api/blobs/{sha256}` | Blob content (full tool output, handoff, full report) | C9, C17 |
+| `GET /api/runs/{run}/jobs/{job}/output?tail=N` | The job's tail blob (last 64 KiB); for a running job, refreshed from `tasks().get_progress` first | B2 |
 
 **Commands** go to `POST /api/runs/{run}/commands` with body `{cmd, …}`. The reply is `{accepted_seq}`, sent only after the resulting event commits. The UI never updates its projection optimistically. Until `accepted_seq` arrives, it shows only a pending state on the control.
 
@@ -885,7 +895,9 @@ The mockup's **Wiring** toggle labels every element with an ID from the tables b
 | `plan_edit` | `version, markdown, tasks` | Draft updated, `user_edited = true` | — |
 | `plan_decide` | `version, approve \| reject, feedback?` | Ops applied to the board; `Notify` mail to the orchestrator | `send(Enqueue)`; on the first approval `mode().set(..)` out of plan mode, then `plan().update` |
 | `permission_decide` | `request_id, once \| location \| deny \| keep_denied \| approve_retry` | Resolves the held handler, or stores a rule and sends a retry directive | `approve_once()`, `ApproveForLocation`, `reject(..)`, `send(Enqueue)` |
-| `agent_stop` | `agent_id` | Writers commit work in progress to their branch and record it on the task (`TaskResult.branch`). Owned tasks go back to `pending`, so the next owner continues from that branch. The agent becomes `cancelled`. | `abort()`, then `sessions().close` once `session.idle` arrives; `queue().clear()` first if V5 shows abort leaves the queue |
+| `agent_stop` | `agent_id` | Its running background jobs are cancelled first. Writers commit work in progress to their branch and record it on the task (`TaskResult.branch`). Owned tasks go back to `pending`, so the next owner continues from that branch. The agent becomes `cancelled`. | `tasks().cancel` per running job, then `abort()`, then `sessions().close` once `session.idle` arrives; `queue().clear()` first if V5 shows abort leaves the queue |
+| `job_stop` | `job_id` | `BgJobExited{status: cancelled}`; `Notify` mail to the owner | `tasks().cancel({id})` on the owner's session; kill by `pid` if that returns `cancelled: false` for a detached shell |
+| `job_clear` | `job_ids` | `BgJobRemoved`; records and tail blobs stay in the log | `tasks().remove({id})` per job |
 | `task_assign`, `task_release`, `task_cancel` | `task_id, agent?` | Board operations (section 6 table) | — |
 
 ### 10.2 Client state [INF]
@@ -914,6 +926,7 @@ These are referenced by the element tables. Every formula's inputs are either SD
 | **D9** | Per-edit diff | Lines changed by one tool call. | For each `file_edits[].path` after `tool.execution_complete`: read the file in the agent's worktree, store it as a content-addressed blob, diff against the previous stored version of that path (or `git show <base_commit>:<path>`; empty for new files) with the `similar` crate. Counts = inserted / deleted lines. | `tool_finished` | INF |
 | **D10** | Delivery text | How a message reached its recipient. | `held` → 'Held until <agent> is idle'; `submitted` → 'Queued in <agent>'s session'; `in_context{steering}` → 'Steered into the current turn'; `in_context{queued}` → 'Delivered at the turn boundary'; `in_context{idle}` → 'Delivered; started a turn'; `answered`, `withdrawn`, `expired`, `failed` as named. The `delivery` values come from `UserMessageDelivery` (SV). [UserMessageDelivery](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L10053-L10066) | `mail_state` | SV+INF |
 | **D11** | Compaction threshold | Where background compaction starts for this agent, as a share of its window. | `min(0.80, 250000 / window)`, where `window` is the context size declared by the agent's BYOK provider profile (`context_window_tokens`), known before the session is created and also passed as `ProviderConfig.max_prompt_tokens` (SV). The result is set as `InfiniteSessionConfig.background_compaction_threshold` (field SV, formula INF, section 4.2). If the first `session.usage_info.token_limit` differs, the harness logs `health` and uses the smaller value from the next generation on. 0.80 for a 200K window, 0.625 for 400K, 0.25 for 1M. [InfiniteSessionConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012), [ProviderConfig.max_prompt_tokens](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1351-L1356), [SessionUsageInfoData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449) | `agent_spawned`, `agent_rotated`, `usage` | SV+INF |
+| **D12** | Background job status | Running · Idle · Exited N · Failed (exit N) · Stopped · Lost | From `TaskShellInfo.status` (SV): `running` → Running; `idle` → Idle; `completed` → Exited 0, or Exited N when a non-zero code is known; `failed` → Failed (exit N); `cancelled` → Stopped. A job the harness still holds as running but that is missing from `tasks().list()` → Lost (INF). Exit codes as in B6. [TaskStatus](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L50926-L50946) | `bg_job_started`, `bg_job_exited` | SV+UNV |
 <!-- GEN:derived:end -->
 
 
@@ -1050,6 +1063,19 @@ In the "Updated by" column, names marked (Copilot) are SDK event types carried i
 | **G1** | Base commit | Commit every worktree was created from. | `Workspace::Worktree.base_commit`, recorded when the harness ran `git worktree add`. | `agent_spawned` | — | INF |
 | **G2** | Changed files per worktree | Status letter, path and +/− per file. | `git -C <wt> diff --numstat <base_commit>` and `git status --porcelain`. | `tool_finished` | — | INF |
 
+#### Background jobs
+
+B5 and B6 sit in the agent transcript; B3 also appears in the header, composer strip, rail, sidebar and agent rows. Section 10.7 describes the job lifecycle.
+
+| ID | Element | Shows | Data source | Updated by | User action → effect | Status |
+|---|---|---|---|---|---|---|
+| **B1** | Background job card | One card per background shell: description, command, owner agent, status, elapsed time, pid, attached or detached, and a listening port when one is seen. | Per agent session, `tasks().list()` (SV, experimental) returns entries tagged by `type`. `type: "shell"` entries parse as `TaskShellInfo{id, command, description, status, execution_mode, attachment_mode, pid, log_path, started_at, completed_at}` (SV). The harness re-lists a session when `session.background_tasks_changed` arrives (empty payload, SV) and diffs the result into `bg_job_started` / `bg_job_exited`, keyed by (agent, task id), so finished jobs outlive the session, a rotation and a CLI restart (INF). Elapsed = now − `started_at`, frozen at `completed_at`. The port is parsed from the output ('listening on …:N') and is only a hint (CLIENT). `type: "agent"` entries (`TaskAgentInfo`) are not shown here, because the harness spawns its own subagents. [tasks.list](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17118), [TaskShellInfo](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L29380-L29410), [SessionBackgroundTasksChangedData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L8349-L8352), [TaskShellInfoAttachmentMode](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L51158-L51169) | `bg_job_started`, `bg_job_exited`, `bg_job_removed`, `session.background_tasks_changed` (Copilot) | More output expands the tail (B2). Message opens the composer to the owner. | SV+INF |
+| **B2** | Live output tail | The last lines a background shell printed: 3 on a running card, 2 on a failed one, 14 when expanded. | Attached shells stream `tool.shell_output{tool_call_id, sequence, stream, text}` (SV). It is ephemeral (not persisted, not replayed to late subscribers), so the harness appends each chunk to a per-job tail blob capped at 64 KiB and forwards `bg_job_output` frames that are drawn but never stored, like `delta_batch` (INF). On first paint or after a gap the tail is refilled from `tasks().get_progress({id})` → `TaskShellProgress{pid, recent_output}` (SV). Detached shells have no stream; the harness tails `log_path` (SV field). Whether `tool.shell_output` keeps flowing after the starting tool call has returned is probe V19. [ToolShellOutputData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4677-L4690), [tasks.getProgress](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17260), [TaskShellProgress](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L29422-L29430) | `bg_job_output`, `tool.shell_output` (Copilot) | Full output: `GET /api/runs/{run}/jobs/{job}/output`. | SV+UNV |
+| **B3** | Background count | How many background shells are running: header chip, composer strip, rail badge, and a per-agent count on the sidebar, agent rows and task cards. | Jobs in the harness projection whose D12 status is Running or Idle, grouped by owner. Finished jobs are not counted. | `bg_job_started`, `bg_job_exited`, `agent_status` | Click opens the Background tab. | INF |
+| **B4** | Stop and Clear | Stop on a running job (two clicks) and Clear on the Finished group. | Stop sends `job_stop{job_id}` → `tasks().cancel({id})` (SV) on the owner's session. The job ends as Stopped and the owner gets a `Notify` mail. If `cancelled` is false and the job is detached with a `pid`, the harness kills the process group (INF). Clear sends `job_clear` → `tasks().remove({id})` (SV) per finished job; the harness keeps its records and output blobs. `agent_stop` cancels the agent's running jobs before `abort()` (INF). [tasks.cancel](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17387), [tasks.remove](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17417) | `bg_job_exited` | Stop: the first click arms, the second cancels. Clear: hides finished jobs from the tab. | SV+INF |
+| **B5** | 'Started in background' card | In the owner's transcript: the shell call that started a background job, its live status, elapsed time and last output lines. | The `tool.execution_start` row (C5) whose `shell_tool_info.display_command` matches a new `TaskShellInfo.command` with `execution_mode: background` (SV fields). The harness links the call and the job through `bg_job_started.tool_call_id` (INF). That `TaskShellInfo.id` can be matched to the tool call is probe V19; the fallback is command text plus start time. A sync shell moved to the background with `tasks().promote_to_background({id})` (SV) gets the same card. [tasks.promoteToBackground](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17321), [TaskShellInfo.execution_mode](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L29393-L29395) | `tool_started`, `bg_job_started`, `bg_job_exited` | Show in Background opens the tab at this job. Stop as in B4. | SV+UNV |
+| **B6** | Background job exit divider | A divider in the owner's transcript when a job leaves Running: exit code, duration, and how the owner was told. | `bg_job_exited{job, status, exit_code, duration_ms, tail}`. The exit code comes from `ToolExecutionCompleteContentShellExit{shell_id, exit_code, output_preview}` (SV type) when one arrives, else it shows as unknown; which event carries it for a background shell is probe V19. The harness then sends the owner a `Notify` mail with the exit code and the last 20 lines (`Enqueue` when mid-turn, a new turn when idle), so agents never poll their jobs (INF). copilot-cli #4946 reports an HTTP 400 after a background shell completion; V19 checks it on each BYOK route. [ToolExecutionCompleteContentShellExit](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4872-L4891) | `bg_job_exited`, `mail_created`, `mail_state` | — | INF+UNV |
+
 #### Rail
 
 | ID | Element | Shows | Data source | Updated by | User action → effect | Status |
@@ -1076,12 +1102,16 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 | `agent_resumed` | harness `EventKind` | S6, C8, A2 |
 | `agent_rotated` | harness `EventKind` | H2, H6, H7, C17, A2, D11 |
 | `agent_spawned` | harness `EventKind` | S2, S3, S5, H1, H7, C8, C18, A3, G1, D11 |
-| `agent_status` | harness `EventKind` | S1, S2, S3, S5, H3, H4, C8, C9, C12, C23, C24, C25, K3, K4, A1, A2, D1, D6 |
+| `agent_status` | harness `EventKind` | S1, S2, S3, S5, H3, H4, C8, C9, C12, C23, C24, C25, K3, K4, A1, A2, B3, D1, D6 |
+| `bg_job_exited` | harness `EventKind` | B1, B3, B4, B5, B6, D12 |
+| `bg_job_output` | harness `EventKind` | B2 |
+| `bg_job_removed` | harness `EventKind` | B1 |
+| `bg_job_started` | harness `EventKind` | B1, B3, B5, D12 |
 | `compaction` | harness `EventKind` | C16 |
 | `delta_batch` | harness `EventKind` | C4, C6, C22 |
 | `health` | harness `EventKind` | S6, E4 |
-| `mail_created` | harness `EventKind` | H5, C12, C14, C15, C18, C21, C23, K11, M2, R2 |
-| `mail_state` | harness `EventKind` | H4, H5, C12, C14, C15, C21, C25, K2, A1, M2, R2, D1, D8, D10 |
+| `mail_created` | harness `EventKind` | H5, C12, C14, C15, C18, C21, C23, K11, M2, B6, R2 |
+| `mail_state` | harness `EventKind` | H4, H5, C12, C14, C15, C21, C25, K2, A1, M2, B6, R2, D1, D8, D10 |
 | `permission` | harness `EventKind` | H4, H5, C13, C25, A1, D1, D8 |
 | `plan_decided` | harness `EventKind` | S1, H1, H5, C10, C11, T1, P1, P2, R3, D8 |
 | `plan_version_created` | harness `EventKind` | H5, C10, C11, P1, P2, R3 |
@@ -1092,7 +1122,7 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 | `task_created` | harness `EventKind` | A4, T2, T3 |
 | `task_ready` | harness `EventKind` | T3, D4 |
 | `tool_finished` | harness `EventKind` | C5, C20, K1, G2, D9 |
-| `tool_started` | harness `EventKind` | C5, D2 |
+| `tool_started` | harness `EventKind` | C5, B5, D2 |
 | `usage` | harness `EventKind` | H6, C8, C16, A2, E5, D5, D11 |
 | `user_message` | harness `EventKind` | S1, C2, K11 |
 | `assistant.intent` | Copilot SDK event (`Origin::Copilot.event_type`) | C8, A2, D2 |
@@ -1101,8 +1131,10 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 | `assistant.turn_end` | Copilot SDK event (`Origin::Copilot.event_type`) | C7 |
 | `assistant.turn_start` | Copilot SDK event (`Origin::Copilot.event_type`) | D1 |
 | `assistant.usage` | Copilot SDK event (`Origin::Copilot.event_type`) | C3, C7, D7 |
+| `session.background_tasks_changed` | Copilot SDK event (`Origin::Copilot.event_type`) | B1 |
 | `session.idle` | Copilot SDK event (`Origin::Copilot.event_type`) | D1 |
 | `session.model_change` | Copilot SDK event (`Origin::Copilot.event_type`) | K9 |
+| `tool.shell_output` | Copilot SDK event (`Origin::Copilot.event_type`) | B2 |
 | `user.message` | Copilot SDK event (`Origin::Copilot.event_type`) | C2, C15 |
 <!-- GEN:routing:end -->
 
@@ -1117,7 +1149,18 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 - **X1, sample data:** run names, the repository `payments-api`, branch names, model names (`gpt-5.1`, `claude-sonnet-4.5`, …), file paths, code, message text, and every token count and timing. These were invented to exercise the wiring and were not produced by any API.
 - **H8 and H9:** the theme toggle and the Wiring overlay are client-only. H9 exists only in the mockup.
 - **S7:** "New session", history and search are placeholders. Only `create_run` is specified.
-- **Simulated behaviour:** the mockup fakes streaming, the permission countdown, and delivery delays with timers. Real timing comes from the events named above.
+- **Simulated behaviour:** the mockup fakes streaming, the permission countdown, and delivery delays with timers. Real timing comes from the events named above. Background job output, elapsed clocks and the coder-2 build finishing are driven by a 1 s timer on a clock that starts at 11:07; the commands, pids and output lines are sample data (X1).
+
+### 10.7 Background jobs [SV + INF]
+
+An agent can start a shell that outlives the tool call: a dev server, a watcher, a long build. Copilot tracks these per session as background tasks **[SV, experimental]**: `tasks().list()` returns `TaskShellInfo` entries, `tasks().get_progress` returns recent output, and `tasks().cancel` / `tasks().remove` stop and forget them ([rpc.rs#L17118](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17118), [api_types.rs#L29380-L29410](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L29380-L29410)). The harness adds four rules **[INF]**:
+
+1. **Ownership.** Every job belongs to the agent whose session started it. The harness keeps its own `BgJob` record keyed by (agent, task id), so a job stays visible after the session closes, after a rotation and after a CLI restart.
+2. **No polling.** When a job leaves Running, the harness sends the owner one `Notify` mail with the exit code, duration and last 20 output lines (`Enqueue` if the owner is mid-turn, a new turn if it is idle). Agents are told this in their brief, so they do not loop on `read`-style tool calls.
+3. **Stop cascades.** `agent_stop` cancels the agent's running jobs before `abort()`. At run end the harness cancels every remaining job and kills detached ones by `pid`.
+4. **Rotation.** Before a session is closed for a new generation, the harness lists its jobs. Attached jobs are expected to end with the session (V19 checks this): the harness records them as Stopped and names them in the handoff so the new generation can restart them. Detached jobs keep running; the harness adopts them by `pid` and `log_path` and reports their exit itself.
+
+Output is kept as a tail blob of 64 KiB per job. Live chunks come from `tool.shell_output`, which Copilot does not persist or replay ([session_events.rs#L4677-L4690](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4677-L4690)), so the tail blob is the only durable copy. Probe V19 settles the parts the generated types do not answer.
 
 ## 11. Verification probes
 
@@ -1143,6 +1186,7 @@ Run these against the pinned crate and CLI before the code that depends on them.
 | **V16** | What do resume and retention cost at a given session size? | On the pinned CLI, for workspaces of 32, 128 and 256 MiB: resume time; peak RSS; RSS held by a live session; whether closing an idle session frees it; whether any `assistant.usage` appears during a resume; and whether `continue_pending_work: true` continues a pending harness tool call and permission request after a CLI kill | Resume under 60 s, peak RSS under 2 GiB at 256 MiB, no model call, pending work continued | Lower RT4 to the largest size that passes; if pending work is not continued, wake the agent with the interruption notice only |
 | **V17** | What is the fixed cost of a request, is the conversation cached on each BYOK route, and does `input_tokens` include cache reads? | Per role, read `session.usage_info.system_tokens + tool_definitions_tokens`. Run 10 turns and check that `assistant.usage.cache_read_tokens` grows with the conversation, not only with the prefix. Start a second session with the same config and compare its first `cache_read_tokens`, with and without `system_message` customized to drop the environment section. | The conversation is cached on every profile | A profile that caches only the prefix pays full price for its history on every request: lower its compaction cap, or prefer another profile |
 | **V18** | How long does compaction take, and does it succeed, near each profile's threshold? | Fill a session to the section 4.2 threshold on each BYOK profile and record `compaction_tokens_used.duration` and `success` | Under 120 s and successful | Lower that profile's absolute cap |
+| **V19** | Background shells: does `session.background_tasks_changed` fire on start and on exit; does `tool.shell_output` keep flowing after the starting tool call returns; which event carries the exit code (`ToolExecutionCompleteContentShellExit.exit_code`?); can `TaskShellInfo.id` be matched to the starting `tool_call_id`; do attached shells end when the session closes; does `tasks().cancel` stop a detached shell; does copilot-cli #4946 (HTTP 400 after a background shell completion) reproduce on each BYOK route? | Per profile, start `sleep 30 && exit 3` attached and detached; cancel one, let one exit, close a session with one running | Events and exit code arrive; cancel stops both; no 400 | Poll `tasks().list()` and `get_progress` every 2 s while any job runs; kill by `pid`; exit code shown as unknown |
 
 ## 12. Build order
 
