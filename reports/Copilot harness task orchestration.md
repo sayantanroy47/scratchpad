@@ -27,7 +27,7 @@ This spec is for the agent that implements the harness. It tells you what to bui
 | 5 | Each writing agent gets its own git worktree; readers share the main checkout | `Workspace::Worktree` |
 | 6 | The orchestrator drafts the plan in read-only plan mode. The user edits and approves it. Re-plans that add, remove or rewire tasks also need approval. | Section 6.2 |
 | 7 | The crash to eliminate is Copilot CLI/SDK session growth | Section 4. The 2026-10-13 review found that the reported failures are process heap exhaustion, very large logs (hundreds of MB), failing compaction and stalled event delivery, each with its own mitigation. |
-| 8 | The UI is OpenChamber-like: inline agent cards in the parent chat, plus a right rail | Section 10 |
+| 8 | The UI is OpenChamber-like: inline agent cards in the parent chat. Revised 2026-10-15: a title bar with a Chat / Code switch, an activity bar and sidebar views on the left, a run panel on the right and a status bar | Section 10 |
 | 9 | **Revised 2026-10-13.** Copilot compacts each agent's context in place. An agent moves to a fresh Copilot session only on four failure triggers (failed compaction twice, no room after compaction, failed resume, a 256 MiB session workspace). The new session is seeded with Copilot's last compaction summary plus a harness brief of at most 8 KiB. The earlier event-count, size and time triggers are removed. | Sections 4.2 and 4.3 |
 | 10 | No SDK callback waits on a human for more than 90 s. After that, a permission request is auto-rejected with feedback, its card stays open, and "Approve & retry" tells the agent to retry. | Sections 7.5 and 10, C13 |
 | 11 | One Copilot CLI process for all agents, watched by a supervisor that **resumes** sessions after a crash or recycle | Section 4.4 |
@@ -46,7 +46,7 @@ The spec also sets these defaults **[INF]**. Each can be changed.
 ```mermaid
 flowchart LR
   subgraph UI[UI client]
-    V[Views: sidebar, chat, composer, rail]
+    V[Views: sidebar, chat, composer, run panel, code view]
   end
   subgraph H[Harness process, tokio]
     GW[UiGateway<br/>HTTP + WebSocket]
@@ -514,7 +514,7 @@ The orchestrator session starts with `MessageOptions.agent_mode = Plan`, or with
 
 Claude Code's teammates send plan-approval requests that the lead approves automatically, without the human ([teams](https://code.claude.com/docs/en/agent-teams)). This harness should not copy that. Only the user approves plan versions. Per-teammate implementation plans, if wanted, are private checklists.
 
-The **private scratch checklist** is a per-agent `todo_write`-style list with whole-list replacement, which is acceptable because only one writer exists. It is stored on `AgentRecord`, rendered in the agent's card and the right rail, and never consulted for scheduling. This matches Codewhale's private per-child list ([SUBAGENTS.md](https://github.com/Hmbown/CodeWhale/blob/008d21d69fa14d93a36a749b6afedd17d706c8cb/docs/SUBAGENTS.md#L154-L189)).
+The **private scratch checklist** is a per-agent `todo_write`-style list with whole-list replacement, which is acceptable because only one writer exists. It is stored on `AgentRecord`, rendered in the agent's card and the Agents tab, and never consulted for scheduling. This matches Codewhale's private per-child list ([SUBAGENTS.md](https://github.com/Hmbown/CodeWhale/blob/008d21d69fa14d93a36a749b6afedd17d706c8cb/docs/SUBAGENTS.md#L154-L189)).
 
 ## 7. Messaging
 
@@ -878,8 +878,9 @@ The mockup's **Wiring** toggle labels every element with an ID from the tables b
 | `WS /api/runs/{run}/stream?since_seq=N` | Frames `{type: "event", env: EventEnvelope}`, `{type: "resync", from, reason}`, `{type: "snapshot", seq, projection}`, `{type: "stream.end", reason, last_seq, retryable}` | Everything live |
 | `GET /api/runs/{run}/events?agent=&before_seq=&limit=200` | One page of an agent's envelopes, from the harness log | C1 |
 | `GET /api/runs/{run}/log/stats` | Head seq, file list and sizes, live-path lag counters | E1, E2, E4, E6 |
-| `GET /api/runs/{run}/worktrees` | Per worktree: `{branch, base_commit, files: [{status, path, added, removed}]}` | K1, G1, G2 |
-| `GET /api/blobs/{sha256}` | Blob content (full tool output, handoff, full report) | C9, C17 |
+| `GET /api/runs/{run}/worktrees` | Per worktree: `{branch, base_commit, files: [{status, path, added, removed}]}`, plus the full file list for the Explorer | K1, G1, G2, W1, W2 |
+| `GET /api/runs/{run}/worktrees/{agent}/file?path=` | `{path, rev, size, content}` from that worktree (`agent = main` for the main checkout); a blob hash instead of `content` above 256 KiB | W4 |
+| `GET /api/blobs/{sha256}` | Blob content (full tool output, handoff, full report, large files, per-edit diffs) | C9, C17, W4, W5 |
 | `GET /api/runs/{run}/jobs/{job}/output?tail=N` | The job's tail blob (last 64 KiB); for a running job, refreshed from `tasks().get_progress` first | B2 |
 
 **Commands** go to `POST /api/runs/{run}/commands` with body `{cmd, …}`. The reply is `{accepted_seq}`, sent only after the resulting event commits. The UI never updates its projection optimistically. Until `accepted_seq` arrives, it shows only a pending state on the control.
@@ -942,6 +943,16 @@ These are referenced by the element tables. Every formula's inputs are either SD
 In the "Updated by" column, names marked (Copilot) are SDK event types carried in `Origin::Copilot.event_type`. All other names are harness `EventKind`s from section 9.
 
 <!-- GEN:tables:start -->
+#### Title bar
+
+| ID | Element | Shows | Data source | Updated by | User action → effect | Status |
+|---|---|---|---|---|---|---|
+| **H8** | Theme toggle | Light or dark theme. | Client preference only. | — | — | CLIENT |
+| **H9** | 'Wiring' toggle | Mockup-only overlay that labels every element with its wiring id. | Exists only in this mockup; not part of the product. | — | — | CLIENT |
+| **H10** | 'Drop link' toggle (mockup only) | Simulates losing the harness stream so the connection banner C26 can be seen. | Exists only in this mockup; not part of the harness API. The outage lasts about 12 s, so the third automatic retry succeeds. | — | Click drops the simulated link; click again ('Restore link') reconnects at once. | CLIENT |
+| **H12** | Chat / Code switch | Switches between the conversation layout and the Code view (W1–W6). The run, the focused agent and the composer stay the same. | Client state. | — | Code puts the editor in the middle and the chat on the right; the run panel is hidden until you switch back. | CLIENT |
+| **H13** | Sidebar and run panel toggles | Whether the sidebar and the run panel are visible. | Client state. | — | Click toggles. In the Code view the panel toggle switches back to Chat. | CLIENT |
+
 #### Sidebar
 
 | ID | Element | Shows | Data source | Updated by | User action → effect | Status |
@@ -951,24 +962,15 @@ In the "Updated by" column, names marked (Copilot) are SDK event types carried i
 | **S3** | Agent tree under the run | Every agent of the run with a status glyph and its first task id (or 'lead'). | `AgentRecord{id, parent, depth, tasks, status}` ordered by depth then spawn seq. Glyph = display status D1. Right label = lowest `TaskId` in `tasks`, or 'lead' for the orchestrator. | `agent_spawned`, `agent_status`, `task_changed` | Click focuses that agent's transcript (client). | INF |
 | **S4** | Repository group header | Repository name. | Basename of `git rev-parse --show-toplevel` for the run's `repo_root`. | — | — | INF |
 | **S5** | Agent worktrees list | Branch of each writing agent's worktree, coloured by agent. | `AgentRecord.workspace = Worktree{path, branch, base_commit}`; reconciled against `git worktree list --porcelain` at harness start. | `agent_spawned`, `agent_status` | Click opens the Worktrees tab (G1, G2). | INF |
-| **S6** | Copilot CLI status footer | Whether the single Copilot CLI child process is up and how many agent sessions it hosts. | Process up = `Client::pid()` returns `Some` (SV); exits are observed on `Client::subscribe_lifecycle()` (SV); liveness is `Client::ping` every 30 s (SV). Session count = agents whose `CopilotBinding` is live (harness). RSS is read by the harness supervisor from the OS for that pid; session workspace sizes come from `rpc().sessions().get_sizes()` (SV). At 3 GiB RSS the footer shows the memory step in progress: closing idle sessions, then 'recycle pending' (section 4.4). [Client::pid](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L3053), [Client::subscribe_lifecycle](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L3328), [sessions.getSizes](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L5825), [Client::ping](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L2831) | `health`, `agent_resumed` | — | SV+INF |
-| **S7** | New session, history, search buttons | Placeholders in the mockup. | New session = harness command `create_run`. History and search are client views over S1. | — | — | INF |
+| **S7** | New session, history and search | Placeholders in the mockup. | New session = harness command `create_run`. History and search are client views over S1. | — | — | INF |
 
-#### Header
+#### Chat header
 
 | ID | Element | Shows | Data source | Updated by | User action → effect | Status |
 |---|---|---|---|---|---|---|
-| **H1** | Title and breadcrumb | Run title; when an agent is focused, the parent chain ending in that agent. | Run title (S1). Breadcrumb = `AgentRecord.parent` chain of the focused agent. | `plan_decided`, `agent_spawned` | Clicking a crumb focuses that agent (client). | INF |
-| **H2** | Subtitle in the lead view | Repository, checked-out branch of the main checkout, short id of the lead's Copilot session. | Branch = `git rev-parse --abbrev-ref HEAD` in `repo_root`. Session id = `Session::id()` of the orchestrator's current generation (first 8 chars). [Session::id](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L628) | `agent_rotated` | — | SV+INF |
-| **H3** | Subtitle in an agent view | Agent kind, its task id and title, its worktree branch. | `AgentRecord.kind`, board `Task{id, title}` for its first task, `Workspace` branch or 'main (read-only)'. | `agent_status`, `task_changed` | — | INF |
-| **H4** | 'N active' chip | Agents currently doing or blocked on something. | Count of agents whose display status D1 is `running \| needs_permission \| needs_answer \| waiting_on_agents`. | `agent_status`, `permission`, `mail_state` | Opens the Agents tab. | INF |
+| **H1** | Title tab and breadcrumb | Run title; when an agent is focused, the parent chain ending in that agent. | Run title (S1). Breadcrumb = `AgentRecord.parent` chain of the focused agent. | `plan_decided`, `agent_spawned` | Clicking a crumb focuses that agent (client). | INF |
+| **H3** | Agent subtitle | Agent kind and its task id and title. The status bar shows its worktree branch in the same view. | `AgentRecord.kind`, board `Task{id, title}` for its first task, `Workspace` branch or 'main (read-only)'. | `agent_status`, `task_changed` | — | INF |
 | **H5** | 'N need you' chip | Items that wait on the user. | D8. | `mail_created`, `mail_state`, `plan_version_created`, `plan_decided`, `permission` | Focuses the lead transcript and scrolls to the first open card (C11, C12, C13). | INF |
-| **H6** | Context gauge of the focused agent | Context window used by the focused agent's current Copilot session, as a 270° gauge with a tick at its compaction threshold D11. The arc and percentage shift from grey to amber over the 15 points below the tick and stay amber above it. | D5 = `current_tokens / token_limit` of the latest `session.usage_info`. Tick position and colour ramp come from D11 (0.80 for the 200K windows in the sample). [SessionUsageInfoData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449), [InfiniteSessionConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012) | `usage`, `agent_rotated` | Click opens the breakdown H11. | SV |
-| **H7** | BYOK chip | Name of the provider profile the focused agent's session uses. | Harness config profile → `SessionConfig.provider: ProviderConfig{provider_type, base_url, api_key, wire_api, …}` (SV). Each model call reports `assistant.usage.is_byok` (SV), which the harness can assert. Keys are never sent to the UI. [ProviderConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1295-L1317), [SessionConfig.provider](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2286), [AssistantUsageData.is_byok](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4102) | `agent_spawned`, `agent_rotated` | — | SV |
-| **H8** | Theme toggle | Light or dark theme. | Client preference only. | — | — | CLIENT |
-| **H9** | 'Wiring' toggle | Mockup-only overlay that labels every element with its wiring id. | Exists only in this mockup; not part of the product. | — | — | CLIENT |
-| **H10** | 'Drop link' toggle (mockup only) | Simulates losing the harness stream so the connection banner C26 can be seen. | Exists only in this mockup; not part of the harness API. The outage lasts about 12 s, so the third automatic retry succeeds. | — | Click drops the simulated link; click again ('Restore link') reconnects at once. | CLIENT |
-| **H11** | Context breakdown popover | For the focused agent: tokens in context out of the window, split into system, tools, history and files on one bar with ticks at D11 and 95%, and how far the session is from compaction. The numbers in the mockup are sample data (X1). | The latest `session.usage_info{current_tokens, token_limit, system_tokens, tool_definitions_tokens, conversation_tokens}` of the agent's current generation (SV). System = `system_tokens`. Tools = `tool_definitions_tokens`. Files = the harness's estimate of file content still in context: read-tool results and attachments since the last compaction, at about 4 bytes per token, capped at `conversation_tokens` (INF). History = `conversation_tokens` − Files, plus any gap between the four parts and `current_tokens`. Compaction point = D11 × `token_limit`. [SessionUsageInfoData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449), [InfiniteSessionConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012) | `usage`, `agent_rotated` | 'All agents' opens the Agents tab, where each agent row (A2) has the same meter. Escape or a click outside closes it and returns focus to H6. | SV+INF |
 
 #### Chat
 
@@ -1017,6 +1019,18 @@ In the "Updated by" column, names marked (Copilot) are SDK event types carried i
 | **K9** | Model chip | Model of the target agent's session. | `SessionConfig.model` at creation (required with BYOK per docs); changed with `Session::set_model`; observed as `session.model_change{new_model}`. [SessionConfig.model](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2073), [Session::set_model](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L1122), [SessionModelChangeData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L1591-L1647) | `session.model_change` (Copilot) | — | SV |
 | **K10** | Role pill | lead / teammate / subagent. | `AgentRecord.kind`. | — | — | INF |
 | **K11** | Send button | Sends the message. | To the orchestrator → command `user_message` → `Session::send` (SV). To any other agent → command `send_mail{to, kind: steer, urgency}` → mailbox → `Session::send`. Acknowledged only after the log write commits. [Session::send](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L842) | `user_message`, `mail_created` | — | SV+INF |
+| **K12** | Turn stats line | For the focused agent: turns in its current generation, steps in the current turn, output rate while it streams, tokens and cache share, and its context ring (H6). | Turns = count of `assistant.turn_start` (SV) in the current generation. Steps = D13 spans since the latest `assistant.turn_start`. Output rate = `assistant.message_delta` characters per second over the last 5 s, converted with the model's tokens-per-character estimate; hidden when the agent is not streaming. Tokens and cache share = D7. | `tool_started`, `tool_finished`, `delta_batch`, `usage`, `assistant.turn_start` (Copilot), `assistant.usage` (Copilot) | — | SV+INF |
+| **H6** | Context gauge in the stats line | Context window used by the focused agent's current Copilot session, as a 270° gauge with a tick at its compaction threshold D11. The arc and percentage shift from grey to amber over the 15 points below the tick and stay amber above it. | D5 = `current_tokens / token_limit` of the latest `session.usage_info`. Tick position and colour ramp come from D11 (0.80 for the 200K windows in the sample). [SessionUsageInfoData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449) [InfiniteSessionConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012) | `usage`, `agent_rotated` | Click opens the breakdown H11. | SV |
+| **H11** | Context breakdown popover | For the focused agent: tokens in context out of the window, split into system, tools, history and files on one bar with ticks at D11 and 95%, and how far the session is from compaction. The numbers in the mockup are sample data (X1). | The latest `session.usage_info{current_tokens, token_limit, system_tokens, tool_definitions_tokens, conversation_tokens}` of the agent's current generation (SV). System = `system_tokens`. Tools = `tool_definitions_tokens`. Files = the harness's estimate of file content still in context: read-tool results and attachments since the last compaction, at about 4 bytes per token, capped at `conversation_tokens` (INF). History = `conversation_tokens` − Files, plus any gap between the four parts and `current_tokens`. Compaction point = D11 × `token_limit`. [SessionUsageInfoData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449) [InfiniteSessionConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012) | `usage`, `agent_rotated` | 'All agents' opens the Agents tab, where each agent row (A2) has the same meter. Escape or a click outside closes it and returns focus to H6. | SV+INF |
+| **H7** | BYOK provider | Name of the provider profile the target agent's session uses. | Harness config profile → `SessionConfig.provider: ProviderConfig{provider_type, base_url, api_key, wire_api, …}` (SV). Each model call reports `assistant.usage.is_byok` (SV), which the harness can assert. Keys are never sent to the UI. [ProviderConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1295-L1317) [SessionConfig.provider](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2286) [AssistantUsageData.is_byok](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4102) | `agent_spawned`, `agent_rotated` | — | SV |
+
+#### Status bar
+
+| ID | Element | Shows | Data source | Updated by | User action → effect | Status |
+|---|---|---|---|---|---|---|
+| **H2** | Repository, branch and lead session | Repository, base branch of the run with ahead / behind counts, and the short id of the lead's Copilot session. | Branch = `git rev-parse --abbrev-ref HEAD` in `repo_root`. Session id = `Session::id()` of the orchestrator's current generation (first 8 chars). Ahead / behind = `git rev-list --left-right --count origin/<branch>...HEAD`. [Session::id](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/session.rs#L628) | `agent_rotated` | — | SV+INF |
+| **H4** | 'N active' item | Agents currently doing or blocked on something. | Count of agents whose display status D1 is `running \| needs_permission \| needs_answer \| waiting_on_agents`. | `agent_status`, `permission`, `mail_state` | Opens the Agents tab of the run panel. | INF |
+| **S6** | Copilot CLI status | Whether the single Copilot CLI child process is up and how many agent sessions it hosts. | Process up = `Client::pid()` returns `Some` (SV); exits are observed on `Client::subscribe_lifecycle()` (SV); liveness is `Client::ping` every 30 s (SV). Session count = agents whose `CopilotBinding` is live (harness). RSS is read by the harness supervisor from the OS for that pid; session workspace sizes come from `rpc().sessions().get_sizes()` (SV). At 3 GiB RSS the item shows the memory step in progress: closing idle sessions, then 'recycle pending' (section 4.4). [Client::pid](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L3053) [Client::subscribe_lifecycle](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L3328) [sessions.getSizes](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L5825) [Client::ping](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/lib.rs#L2831) | `health`, `agent_resumed` | — | SV+INF |
 
 #### Agents tab
 
@@ -1079,22 +1093,33 @@ In the "Updated by" column, names marked (Copilot) are SDK event types carried i
 
 #### Background jobs
 
-B5 and B6 sit in the agent transcript; B3 also appears in the header, composer strip, rail, sidebar and agent rows. Section 10.7 describes the job lifecycle.
+B5 and B6 sit in the agent transcript; B3 also appears in the status bar, composer strip, activity bar, sidebar and agent rows. Section 10.7 describes the job lifecycle.
 
 | ID | Element | Shows | Data source | Updated by | User action → effect | Status |
 |---|---|---|---|---|---|---|
 | **B1** | Background job card | One card per background shell: description, command, owner agent, status, elapsed time, pid, attached or detached, and a listening port when one is seen. | Per agent session, `tasks().list()` (SV, experimental) returns entries tagged by `type`. `type: "shell"` entries parse as `TaskShellInfo{id, command, description, status, execution_mode, attachment_mode, pid, log_path, started_at, completed_at}` (SV). The harness re-lists a session when `session.background_tasks_changed` arrives (empty payload, SV) and diffs the result into `bg_job_started` / `bg_job_exited`, keyed by (agent, task id), so finished jobs outlive the session, a rotation and a CLI restart (INF). Elapsed = now − `started_at`, frozen at `completed_at`. The port is parsed from the output ('listening on …:N') and is only a hint (CLIENT). `type: "agent"` entries (`TaskAgentInfo`) are not shown here, because the harness spawns its own subagents. [tasks.list](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17118), [TaskShellInfo](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L29380-L29410), [SessionBackgroundTasksChangedData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L8349-L8352), [TaskShellInfoAttachmentMode](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L51158-L51169) | `bg_job_started`, `bg_job_exited`, `bg_job_removed`, `session.background_tasks_changed` (Copilot) | More output expands the tail (B2). Message opens the composer to the owner. | SV+INF |
 | **B2** | Live output tail | The last lines a background shell printed: 3 on a running card, 2 on a failed one, 14 when expanded. | Attached shells stream `tool.shell_output{tool_call_id, sequence, stream, text}` (SV). It is ephemeral (not persisted, not replayed to late subscribers), so the harness appends each chunk to a per-job tail blob capped at 64 KiB and forwards `bg_job_output` frames that are drawn but never stored, like `delta_batch` (INF). On first paint or after a gap the tail is refilled from `tasks().get_progress({id})` → `TaskShellProgress{pid, recent_output}` (SV). Detached shells have no stream; the harness tails `log_path` (SV field). Whether `tool.shell_output` keeps flowing after the starting tool call has returned is probe V19. [ToolShellOutputData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4677-L4690), [tasks.getProgress](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17260), [TaskShellProgress](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L29422-L29430) | `bg_job_output`, `tool.shell_output` (Copilot) | Full output: `GET /api/runs/{run}/jobs/{job}/output`. | SV+UNV |
-| **B3** | Background count | How many background shells are running: header chip, composer strip, rail badge, and a per-agent count on the sidebar, agent rows and task cards. | Jobs in the harness projection whose D12 status is Running or Idle, grouped by owner. Finished jobs are not counted. | `bg_job_started`, `bg_job_exited`, `agent_status` | Click opens the Background tab. | INF |
+| **B3** | Background count | How many background shells are running: status bar item, composer strip, activity bar badge, and a per-agent count on the sidebar, agent rows and task cards. | Jobs in the harness projection whose D12 status is Running or Idle, grouped by owner. Finished jobs are not counted. | `bg_job_started`, `bg_job_exited`, `agent_status` | Click opens the Background view in the sidebar. | INF |
 | **B4** | Stop and Clear | Stop on a running job (two clicks) and Clear on the Finished group. | Stop sends `job_stop{job_id}` → `tasks().cancel({id})` (SV) on the owner's session. The job ends as Stopped and the owner gets a `Notify` mail. If `cancelled` is false and the job is detached with a `pid`, the harness kills the process group (INF). Clear sends `job_clear` → `tasks().remove({id})` (SV) per finished job; the harness keeps its records and output blobs. `agent_stop` cancels the agent's running jobs before `abort()` (INF). [tasks.cancel](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17387), [tasks.remove](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17417) | `bg_job_exited` | Stop: the first click arms, the second cancels. Clear: hides finished jobs from the tab. | SV+INF |
 | **B5** | 'Started in background' card | In the owner's transcript: the shell call that started a background job, its live status, elapsed time and last output lines. | The `tool.execution_start` row (C5) whose `shell_tool_info.display_command` matches a new `TaskShellInfo.command` with `execution_mode: background` (SV fields). The harness links the call and the job through `bg_job_started.tool_call_id` (INF). That `TaskShellInfo.id` can be matched to the tool call is probe V19; the fallback is command text plus start time. A sync shell moved to the background with `tasks().promote_to_background({id})` (SV) gets the same card. [tasks.promoteToBackground](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/rpc.rs#L17321), [TaskShellInfo.execution_mode](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L29393-L29395) | `tool_started`, `bg_job_started`, `bg_job_exited` | Show in Background opens the tab at this job. Stop as in B4. | SV+UNV |
 | **B6** | Background job exit divider | A divider in the owner's transcript when a job leaves Running: exit code, duration, and how the owner was told. | `bg_job_exited{job, status, exit_code, duration_ms, tail}`. The exit code comes from `ToolExecutionCompleteContentShellExit{shell_id, exit_code, output_preview}` (SV type) when one arrives, else it shows as unknown; which event carries it for a background shell is probe V19. The harness then sends the owner a `Notify` mail with the exit code and the last 20 lines (`Enqueue` when mid-turn, a new turn when idle), so agents never poll their jobs (INF). copilot-cli #4946 reports an HTTP 400 after a background shell completion; V19 checks it on each BYOK route. [ToolExecutionCompleteContentShellExit](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4872-L4891) | `bg_job_exited`, `mail_created`, `mail_state` | — | INF+UNV |
 
-#### Rail
+#### Code view
 
 | ID | Element | Shows | Data source | Updated by | User action → effect | Status |
 |---|---|---|---|---|---|---|
-| **R1** | Panel buttons | Which side panel is open. | Client state. | — | — | CLIENT |
+| **W1** | Explorer (worktree file tree) | Files of the chosen worktree, with each changed file's status letter and a dot on collapsed folders that hold changes. Chips pick an agent worktree or the main checkout. | `GET /api/runs/{run}/worktrees` for branch, base commit and changed files (G1, G2). The full file list is `git -C <wt> ls-files` plus untracked files from `git status --porcelain`, served in the same response. | `agent_spawned`, `tool_finished` | Clicking a folder expands it (client); clicking a file opens it in the editor (W3). | INF |
+| **W2** | Changes list | Every changed file across agent worktrees, grouped by branch, with +/− counts. | Same data as G2. | `tool_finished` | Click opens the file from that worktree. | INF |
+| **W3** | Editor tabs and path bar | Open files, the active file's path, worktree, size and +/− counts, and a 'read-only' badge (the UI never writes files; agents do). Shows '<agent> is editing' while that agent's running turn has edited the file. | Tabs are client state. 'is editing' = the path is in `file_edits` of a `tool.execution_complete` (SV) in the agent's current turn, and D1 is running. | `tool_finished`, `agent_status` | Tabs switch or close files (client). | INF |
+| **W4** | File content | The file as it is in the chosen worktree, highlighted, with gutter marks on lines the agent's latest edit added or changed. | `GET /api/runs/{run}/worktrees/{agent}/file?path=` returns `{path, rev, size, content}`; files over 256 KiB come back as a blob hash read through `/api/blobs/{sha256}`. Gutter marks come from the latest per-edit diff D9 of that path. | `tool_finished` | — | INF |
+| **W5** | File / Diff switch and diff view | The latest per-edit diff of the file. | D9 blobs for the path, newest first. | `tool_finished` | The File / Diff switch is client-only. | INF |
+| **W6** | 'Open in editor' button | Opens the worktree file in the user's local editor. | Placeholder in the mockup; a desktop shell would hand the worktree path to the OS. | — | — | CLIENT |
+
+#### Activity bar
+
+| ID | Element | Shows | Data source | Updated by | User action → effect | Status |
+|---|---|---|---|---|---|---|
+| **R1** | View buttons | Which sidebar view is showing: Sessions, Task board, Plan, Mailbox, Background, Worktrees or Event log. | Client state. | — | Click switches the sidebar to that view; clicking the active view hides the sidebar. | CLIENT |
 | **R2** | Mailbox badge | Mail needing attention. | Asks to the user not yet answered + user-sent mail still `held` or `submitted`. | `mail_created`, `mail_state` | — | INF |
 | **R3** | Task board badge | Plan versions awaiting approval. | Count of `PlanVersion` in `awaiting_approval`. | `plan_version_created`, `plan_decided` | — | INF |
 <!-- GEN:tables:end -->
@@ -1115,14 +1140,14 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 | every envelope | any | E1, E3, E7 |
 | `agent_resumed` | harness `EventKind` | S6, C8, A2 |
 | `agent_rotated` | harness `EventKind` | H2, H6, H7, H11, C17, A2, L2, D11 |
-| `agent_spawned` | harness `EventKind` | S2, S3, S5, H1, H7, C8, C18, A3, L1, L2, G1, D11 |
-| `agent_status` | harness `EventKind` | S1, S2, S3, S5, H3, H4, C8, C9, C12, C23, C24, C25, K3, K4, A1, A2, L1, L2, B3, D1, D6 |
+| `agent_spawned` | harness `EventKind` | S2, S3, S5, H1, H7, C8, C18, A3, L1, L2, G1, W1, D11 |
+| `agent_status` | harness `EventKind` | S1, S2, S3, S5, H3, H4, C8, C9, C12, C23, C24, C25, K3, K4, A1, A2, L1, L2, W3, B3, D1, D6 |
 | `bg_job_exited` | harness `EventKind` | B1, B3, B4, B5, B6, D12 |
 | `bg_job_output` | harness `EventKind` | B2 |
 | `bg_job_removed` | harness `EventKind` | B1 |
 | `bg_job_started` | harness `EventKind` | B1, B3, B5, D12 |
 | `compaction` | harness `EventKind` | C16, L2 |
-| `delta_batch` | harness `EventKind` | C4, C6, C22 |
+| `delta_batch` | harness `EventKind` | C4, C6, C22, K12 |
 | `health` | harness `EventKind` | S6, C26, E4 |
 | `mail_created` | harness `EventKind` | H5, C12, C14, C15, C18, C21, C23, K11, L2, M2, B6, R2 |
 | `mail_state` | harness `EventKind` | H4, H5, C12, C14, C15, C21, C25, K2, A1, L1, L2, M2, B6, R2, D1, D8, D10, D13 |
@@ -1135,16 +1160,16 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 | `task_changed` | harness `EventKind` | S3, H3, C8, C9, C24, A4, T1, T2, T3, D4 |
 | `task_created` | harness `EventKind` | A4, T2, T3 |
 | `task_ready` | harness `EventKind` | T3, D4 |
-| `tool_finished` | harness `EventKind` | C5, C20, K1, L2, L3, G2, D9, D13 |
-| `tool_started` | harness `EventKind` | C5, L2, L3, B5, D2, D13 |
-| `usage` | harness `EventKind` | H6, H11, C8, C16, A2, E5, D5, D11 |
+| `tool_finished` | harness `EventKind` | C5, C20, K1, K12, L2, L3, G2, W1, W2, W3, W4, W5, D9, D13 |
+| `tool_started` | harness `EventKind` | C5, K12, L2, L3, B5, D2, D13 |
+| `usage` | harness `EventKind` | H6, H11, C8, C16, K12, A2, E5, D5, D11 |
 | `user_message` | harness `EventKind` | S1, C2, K11 |
 | `assistant.intent` | Copilot SDK event (`Origin::Copilot.event_type`) | C8, A2, D2 |
 | `assistant.message` | Copilot SDK event (`Origin::Copilot.event_type`) | C3, C6, C22 |
 | `assistant.reasoning` | Copilot SDK event (`Origin::Copilot.event_type`) | C4 |
 | `assistant.turn_end` | Copilot SDK event (`Origin::Copilot.event_type`) | C7, L2, L3, D13 |
-| `assistant.turn_start` | Copilot SDK event (`Origin::Copilot.event_type`) | L2, L3, D1, D13 |
-| `assistant.usage` | Copilot SDK event (`Origin::Copilot.event_type`) | C3, C7, L1, D7 |
+| `assistant.turn_start` | Copilot SDK event (`Origin::Copilot.event_type`) | K12, L2, L3, D1, D13 |
+| `assistant.usage` | Copilot SDK event (`Origin::Copilot.event_type`) | C3, C7, K12, L1, D7 |
 | `session.background_tasks_changed` | Copilot SDK event (`Origin::Copilot.event_type`) | B1 |
 | `session.idle` | Copilot SDK event (`Origin::Copilot.event_type`) | L2, D1 |
 | `session.model_change` | Copilot SDK event (`Origin::Copilot.event_type`) | K9 |
@@ -1161,9 +1186,9 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 ### 10.6 What in the mockup is not wired
 
 - **X1, sample data:** run names, the repository `payments-api`, branch names, model names (`gpt-5.1`, `claude-sonnet-4.5`, …), file paths, code, message text, and every token count and timing. These were invented to exercise the wiring and were not produced by any API.
-- **H8, H9 and H10:** the theme toggle, the Wiring overlay and the Drop link toggle are client-only. H9 and H10 exist only in the mockup.
+- **H8, H9, H10, H12 and H13:** the theme toggle, the Wiring overlay, the Drop link toggle, the Chat / Code switch and the sidebar and panel toggles are client-only. H9 and H10 exist only in the mockup.
 - **S7:** "New session", history and search are placeholders. Only `create_run` is specified.
-- **Simulated behaviour:** the mockup fakes streaming, the permission countdown, and delivery delays with timers. It also fakes a dropped link that comes back after about 12 s (H10). The Run tab spans are sample data (X1). Real timing comes from the events named above. Background job output, elapsed clocks and the coder-2 build finishing are driven by a 1 s timer on a clock that starts at 11:07; the commands, pids and output lines are sample data (X1).
+- **Simulated behaviour:** the mockup fakes streaming, the permission countdown, and delivery delays with timers. It also fakes a dropped link that comes back after about 12 s (H10). The Run tab spans are sample data (X1). So are the file contents in the Code view (W4, W5). Real timing comes from the events named above. Background job output, elapsed clocks and the coder-2 build finishing are driven by a 1 s timer on a clock that starts at 11:07; the commands, pids and output lines are sample data (X1).
 
 ### 10.7 Background jobs [SV + INF]
 
