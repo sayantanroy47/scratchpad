@@ -907,6 +907,7 @@ The mockup's **Wiring** toggle labels every element with an ID from the tables b
 - Transcripts render in a virtualized list.
 - On reconnect the client sends `since_seq`. The gateway replays up to 4,096 envelopes in batches of 256. Beyond that it sends `snapshot` plus `resync`.
 - Ephemeral `delta_batch` frames are drawn but never stored. The final `assistant.message` replaces them.
+- A lost link is reported in one place only, the connection banner (C26). While the stream is down, every other element keeps its last known value, stops animating and refuses commands. Nothing else shows an error. On reconnect the replay above brings everything up to date.
 
 ### 10.3 Derived computations
 
@@ -927,6 +928,7 @@ These are referenced by the element tables. Every formula's inputs are either SD
 | **D10** | Delivery text | How a message reached its recipient. | `held` → 'Held until <agent> is idle'; `submitted` → 'Queued in <agent>'s session'; `in_context{steering}` → 'Steered into the current turn'; `in_context{queued}` → 'Delivered at the turn boundary'; `in_context{idle}` → 'Delivered; started a turn'; `answered`, `withdrawn`, `expired`, `failed` as named. The `delivery` values come from `UserMessageDelivery` (SV). [UserMessageDelivery](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L10053-L10066) | `mail_state` | SV+INF |
 | **D11** | Compaction threshold | Where background compaction starts for this agent, as a share of its window. | `min(0.80, 250000 / window)`, where `window` is the context size declared by the agent's BYOK provider profile (`context_window_tokens`), known before the session is created and also passed as `ProviderConfig.max_prompt_tokens` (SV). The result is set as `InfiniteSessionConfig.background_compaction_threshold` (field SV, formula INF, section 4.2). If the first `session.usage_info.token_limit` differs, the harness logs `health` and uses the smaller value from the next generation on. 0.80 for a 200K window, 0.625 for 400K, 0.25 for 1M. [InfiniteSessionConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012), [ProviderConfig.max_prompt_tokens](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1351-L1356), [SessionUsageInfoData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L2431-L2449) | `agent_spawned`, `agent_rotated`, `usage` | SV+INF |
 | **D12** | Background job status | Running · Idle · Exited N · Failed (exit N) · Stopped · Lost | From `TaskShellInfo.status` (SV): `running` → Running; `idle` → Idle; `completed` → Exited 0, or Exited N when a non-zero code is known; `failed` → Failed (exit N); `cancelled` → Stopped. A job the harness still holds as running but that is missing from `tasks().list()` → Lost (INF). Exit codes as in B6. [TaskStatus](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/api_types.rs#L50926-L50946) | `bg_job_started`, `bg_job_exited` | SV+UNV |
+| **D13** | Activity spans | model · tool · waiting · needs you, plus point events | Per agent, in `seq` order: `assistant.turn_start` (SV) opens a model span; `tool.execution_start` (SV) closes it and opens a tool span keyed by `tool_call_id`; `tool.execution_complete` (SV) closes that and reopens a model span; `assistant.turn_end` (SV) closes whatever is open. A blocking `ask` or `wait` tool is shown as waiting. A permission the harness holds is needs-you from its `permission` request to its decision; it stays open after an auto-deny until the user decides. An Ask forwarded to the user and a plan version awaiting approval are needs-you on the orchestrator's lane until `mail_state` answered or `plan_decided`. Between turns, an orchestrator with live children is waiting. Point events: `compaction`, `agent_rotated`, `mail_created`, `user_message`. [ToolExecutionStartData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4604-L4662) [ToolExecutionCompleteData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L5202-L5281) [AssistantTurnStartData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3195-L3206) [AssistantTurnEndData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L3899-L3907) [SessionIdleData](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L1392-L1398) | `tool_started`, `tool_finished`, `permission`, `mail_state`, `plan_decided`, `assistant.turn_start` (Copilot), `assistant.turn_end` (Copilot) | SV+INF |
 <!-- GEN:derived:end -->
 
 
@@ -965,6 +967,7 @@ In the "Updated by" column, names marked (Copilot) are SDK event types carried i
 | **H7** | BYOK chip | Name of the provider profile the focused agent's session uses. | Harness config profile → `SessionConfig.provider: ProviderConfig{provider_type, base_url, api_key, wire_api, …}` (SV). Each model call reports `assistant.usage.is_byok` (SV), which the harness can assert. Keys are never sent to the UI. [ProviderConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1295-L1317), [SessionConfig.provider](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L2286), [AssistantUsageData.is_byok](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/generated/session_events.rs#L4102) | `agent_spawned`, `agent_rotated` | — | SV |
 | **H8** | Theme toggle | Light or dark theme. | Client preference only. | — | — | CLIENT |
 | **H9** | 'Wiring' toggle | Mockup-only overlay that labels every element with its wiring id. | Exists only in this mockup; not part of the product. | — | — | CLIENT |
+| **H10** | 'Drop link' toggle (mockup only) | Simulates losing the harness stream so the connection banner C26 can be seen. | Exists only in this mockup; not part of the harness API. The outage lasts about 12 s, so the third automatic retry succeeds. | — | Click drops the simulated link; click again ('Restore link') reconnects at once. | CLIENT |
 
 #### Chat
 
@@ -995,6 +998,7 @@ In the "Updated by" column, names marked (Copilot) are SDK event types carried i
 | **C23** | 'Result returned to parent' divider | The agent finished and its result went to the parent. | `agent_status{completed}` and the `Notify{AgentCompleted}` mail to the parent. | `agent_status`, `mail_created` | — | INF |
 | **C24** | Idle note | Why an agent is idle. | D1 = idle plus the board: owned tasks that are not ready and the tasks they wait on. | `agent_status`, `task_changed` | — | INF |
 | **C25** | Status line under the transcript | What the focused agent is doing right now. | D1 for the focused agent. In the lead view: children that are running or waiting on the user, plus D8. | `agent_status`, `permission`, `mail_state` | — | INF |
+| **C26** | Connection banner | The only place a lost link is reported: the UI's stream to the harness, or the harness's Copilot CLI process (S6). While it shows, every other element keeps its last known value, stops animating and refuses commands; the panel header shows the seq the state is from. | Stream state of `WS /api/runs/{run}/stream`: a `stream.end{reason, last_seq, retryable}` frame or a socket close sets it down. While `retryable`, the client reconnects with `since_seq = last_seq + 1` after 2, 4, 8 and 16 s, then every 30 s; replay follows section 10.2. A CLI exit arrives as a `health` envelope from the supervisor, which resumes sessions on its own (section 4.4). | `health` | Retry now reconnects immediately. Diagnostics opens the Event log tab (E4). The chevron shows the reason, last seq, resume URL and backoff. Commands clicked while offline are refused with a toast and are never queued. | INF |
 
 #### Composer
 
@@ -1020,6 +1024,14 @@ In the "Updated by" column, names marked (Copilot) are SDK event types carried i
 | **A2** | Agent row | Name, task, status, activity, context meter, model, generation; Message and Stop. | `AgentRecord` + D1, D2, D5. Meter ticks sit at D11 (the agent's `background_compaction_threshold`) and at `buffer_exhaustion_threshold` 0.95 (fields SV). Generation = `CopilotBinding.generation`; it changes only on the rescue triggers RT1–RT4 of section 4.3. [InfiniteSessionConfig](https://github.com/github/copilot-sdk/blob/b19d3ef043ebfeaeb794339173c39ad6c8eb29ca/rust/src/types.rs#L1001-L1012) | `agent_status`, `usage`, `agent_rotated`, `assistant.intent` (Copilot), `agent_resumed` | Row focuses the agent. Message → K3. Stop → as C8. | SV+INF |
 | **A3** | Team / subagent grouping | Long-lived teammates versus fire-and-forget subagents. | `AgentRecord.kind`: `orchestrator` and `teammate` versus `quick`. | `agent_spawned` | — | INF |
 | **A4** | Compact task list | All tasks with status glyph and owner. | Board projection with D4. | `task_created`, `task_changed` | 'Open board' switches tab. | INF |
+
+#### Run tab
+
+| ID | Element | Shows | Data source | Updated by | User action → effect | Status |
+|---|---|---|---|---|---|---|
+| **L1** | Run summary tiles | Elapsed time since the run started, agents and how many are live, tokens and prompt-cache share across all agents, and the total time at least one item was waiting on the user. | Elapsed = now − `ts_ms` of the run's first envelope. Agents and live = S2. Tokens and cache share = Σ D7 over all agents. Waiting on you = length of the union of all needs-you spans (D13); 'open now' = D8. | `agent_spawned`, `agent_status`, `permission`, `mail_state`, `plan_decided`, `assistant.usage` (Copilot) | — | INF |
+| **L2** | Agent lanes | One lane per agent from spawn to now. Bars show what the agent was doing (model, tool, waiting, needs you); an amber underline marks time an item from that lane waited on the user; diamonds mark compaction, rotation, steering and messages; the teal line is now. | D13 spans per agent, laid out on one time axis. 'Whole run' runs from the first envelope to the next 10-minute mark after now; 'Last 10 min' ends at the next minute. Spans narrower than 2 px are drawn 2 px wide. | `agent_spawned`, `agent_status`, `tool_started`, `tool_finished`, `permission`, `mail_created`, `mail_state`, `plan_version_created`, `plan_decided`, `compaction`, `agent_rotated`, `assistant.turn_start` (Copilot), `assistant.turn_end` (Copilot), `session.idle` (Copilot) | Clicking a lane opens that agent. Hovering a span shows its label, start, end and duration. The Whole run / Last 10 min switch is client-only. | INF |
+| **L3** | Turn steps of the focused agent | The focused agent's current turn, or its last one, as steps: model calls, tool calls, blocking waits and approval waits, each with its duration and its position inside the turn. | D13 spans from the agent's latest `assistant.turn_start` to its `assistant.turn_end`, or to now while the turn runs. After an orchestrator turn ends, its waiting span is shown as the last step. Turn number = count of `assistant.turn_start` in the agent's current generation. Tool labels: `tool_title`, else `tool_name` with its main argument. | `tool_started`, `tool_finished`, `permission`, `assistant.turn_start` (Copilot), `assistant.turn_end` (Copilot) | — | INF |
 
 #### Task board tab
 
@@ -1100,39 +1112,39 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 |---|---|---|
 | every envelope | any | E1, E3, E7 |
 | `agent_resumed` | harness `EventKind` | S6, C8, A2 |
-| `agent_rotated` | harness `EventKind` | H2, H6, H7, C17, A2, D11 |
-| `agent_spawned` | harness `EventKind` | S2, S3, S5, H1, H7, C8, C18, A3, G1, D11 |
-| `agent_status` | harness `EventKind` | S1, S2, S3, S5, H3, H4, C8, C9, C12, C23, C24, C25, K3, K4, A1, A2, B3, D1, D6 |
+| `agent_rotated` | harness `EventKind` | H2, H6, H7, C17, A2, L2, D11 |
+| `agent_spawned` | harness `EventKind` | S2, S3, S5, H1, H7, C8, C18, A3, L1, L2, G1, D11 |
+| `agent_status` | harness `EventKind` | S1, S2, S3, S5, H3, H4, C8, C9, C12, C23, C24, C25, K3, K4, A1, A2, L1, L2, B3, D1, D6 |
 | `bg_job_exited` | harness `EventKind` | B1, B3, B4, B5, B6, D12 |
 | `bg_job_output` | harness `EventKind` | B2 |
 | `bg_job_removed` | harness `EventKind` | B1 |
 | `bg_job_started` | harness `EventKind` | B1, B3, B5, D12 |
-| `compaction` | harness `EventKind` | C16 |
+| `compaction` | harness `EventKind` | C16, L2 |
 | `delta_batch` | harness `EventKind` | C4, C6, C22 |
-| `health` | harness `EventKind` | S6, E4 |
-| `mail_created` | harness `EventKind` | H5, C12, C14, C15, C18, C21, C23, K11, M2, B6, R2 |
-| `mail_state` | harness `EventKind` | H4, H5, C12, C14, C15, C21, C25, K2, A1, M2, B6, R2, D1, D8, D10 |
-| `permission` | harness `EventKind` | H4, H5, C13, C25, A1, D1, D8 |
-| `plan_decided` | harness `EventKind` | S1, H1, H5, C10, C11, T1, P1, P2, R3, D8 |
-| `plan_version_created` | harness `EventKind` | H5, C10, C11, P1, P2, R3 |
+| `health` | harness `EventKind` | S6, C26, E4 |
+| `mail_created` | harness `EventKind` | H5, C12, C14, C15, C18, C21, C23, K11, L2, M2, B6, R2 |
+| `mail_state` | harness `EventKind` | H4, H5, C12, C14, C15, C21, C25, K2, A1, L1, L2, M2, B6, R2, D1, D8, D10, D13 |
+| `permission` | harness `EventKind` | H4, H5, C13, C25, A1, L1, L2, L3, D1, D8, D13 |
+| `plan_decided` | harness `EventKind` | S1, H1, H5, C10, C11, L1, L2, T1, P1, P2, R3, D8, D13 |
+| `plan_version_created` | harness `EventKind` | H5, C10, C11, L2, P1, P2, R3 |
 | `resync` | harness `EventKind` | E4 |
 | `scratch_todos` | harness `EventKind` | C8, C19, D2, D3 |
 | `snapshot_written` | harness `EventKind` | E2, E6 |
 | `task_changed` | harness `EventKind` | S3, H3, C8, C9, C24, A4, T1, T2, T3, D4 |
 | `task_created` | harness `EventKind` | A4, T2, T3 |
 | `task_ready` | harness `EventKind` | T3, D4 |
-| `tool_finished` | harness `EventKind` | C5, C20, K1, G2, D9 |
-| `tool_started` | harness `EventKind` | C5, B5, D2 |
+| `tool_finished` | harness `EventKind` | C5, C20, K1, L2, L3, G2, D9, D13 |
+| `tool_started` | harness `EventKind` | C5, L2, L3, B5, D2, D13 |
 | `usage` | harness `EventKind` | H6, C8, C16, A2, E5, D5, D11 |
 | `user_message` | harness `EventKind` | S1, C2, K11 |
 | `assistant.intent` | Copilot SDK event (`Origin::Copilot.event_type`) | C8, A2, D2 |
 | `assistant.message` | Copilot SDK event (`Origin::Copilot.event_type`) | C3, C6, C22 |
 | `assistant.reasoning` | Copilot SDK event (`Origin::Copilot.event_type`) | C4 |
-| `assistant.turn_end` | Copilot SDK event (`Origin::Copilot.event_type`) | C7 |
-| `assistant.turn_start` | Copilot SDK event (`Origin::Copilot.event_type`) | D1 |
-| `assistant.usage` | Copilot SDK event (`Origin::Copilot.event_type`) | C3, C7, D7 |
+| `assistant.turn_end` | Copilot SDK event (`Origin::Copilot.event_type`) | C7, L2, L3, D13 |
+| `assistant.turn_start` | Copilot SDK event (`Origin::Copilot.event_type`) | L2, L3, D1, D13 |
+| `assistant.usage` | Copilot SDK event (`Origin::Copilot.event_type`) | C3, C7, L1, D7 |
 | `session.background_tasks_changed` | Copilot SDK event (`Origin::Copilot.event_type`) | B1 |
-| `session.idle` | Copilot SDK event (`Origin::Copilot.event_type`) | D1 |
+| `session.idle` | Copilot SDK event (`Origin::Copilot.event_type`) | L2, D1 |
 | `session.model_change` | Copilot SDK event (`Origin::Copilot.event_type`) | K9 |
 | `tool.shell_output` | Copilot SDK event (`Origin::Copilot.event_type`) | B2 |
 | `user.message` | Copilot SDK event (`Origin::Copilot.event_type`) | C2, C15 |
@@ -1147,9 +1159,9 @@ This is the inverse of 10.4. When an envelope of this type arrives, re-render th
 ### 10.6 What in the mockup is not wired
 
 - **X1, sample data:** run names, the repository `payments-api`, branch names, model names (`gpt-5.1`, `claude-sonnet-4.5`, …), file paths, code, message text, and every token count and timing. These were invented to exercise the wiring and were not produced by any API.
-- **H8 and H9:** the theme toggle and the Wiring overlay are client-only. H9 exists only in the mockup.
+- **H8, H9 and H10:** the theme toggle, the Wiring overlay and the Drop link toggle are client-only. H9 and H10 exist only in the mockup.
 - **S7:** "New session", history and search are placeholders. Only `create_run` is specified.
-- **Simulated behaviour:** the mockup fakes streaming, the permission countdown, and delivery delays with timers. Real timing comes from the events named above. Background job output, elapsed clocks and the coder-2 build finishing are driven by a 1 s timer on a clock that starts at 11:07; the commands, pids and output lines are sample data (X1).
+- **Simulated behaviour:** the mockup fakes streaming, the permission countdown, and delivery delays with timers. It also fakes a dropped link that comes back after about 12 s (H10). The Run tab spans are sample data (X1). Real timing comes from the events named above. Background job output, elapsed clocks and the coder-2 build finishing are driven by a 1 s timer on a clock that starts at 11:07; the commands, pids and output lines are sample data (X1).
 
 ### 10.7 Background jobs [SV + INF]
 
