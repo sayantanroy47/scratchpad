@@ -169,34 +169,58 @@ button.sbi:hover{background:var(--surface-3);color:var(--fg)}
 .logo{width:22px;height:22px;border-radius:6px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;flex:none}
 .logo .ic{width:13px;height:13px;stroke-width:2.4}
 .wordmark{font-weight:var(--fw-semibold);color:var(--fg-strong);letter-spacing:.01em}
-.sb-head{height:42px;flex:none;display:flex;align-items:center;gap:2px;padding:0 6px 0 14px}
-.sb-head h2{flex:1;margin:0;font-size:13px;font-weight:var(--fw-semibold);color:var(--fg-strong);display:flex;align-items:center;gap:8px;min-width:0}
-.sb-head h2 .ic{color:var(--muted)}
-.sb-head .ibtn{width:28px;height:28px}
-.sb-search{margin:0 10px 6px;display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-radius:var(--r-md);background:var(--bg);border:1px solid var(--border);color:var(--faint);flex:none}
-.sb-search:focus-within{border-color:color-mix(in srgb,var(--accent) 60%,var(--border))}
-.sb-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12.5px;color:var(--fg)}
-.sb-search input::placeholder{color:var(--faint)}
-.sb-scroll,.sb-body{flex:1;overflow:auto;min-height:0}
-.sb-scroll{padding:2px 8px 12px}
-.sb-gh{display:flex;align-items:center;gap:7px;width:100%;padding:10px 8px 4px;font-size:12px;font-weight:var(--fw-semibold);color:var(--muted);text-align:left}
+.sidebar{position:relative}
+.sb-tools{display:flex;align-items:center;gap:2px;height:36px;flex:none;padding:0 6px 0 10px}
+.sb-tools .spacer{flex:1}
+.sb-tools .ibtn{width:28px;height:28px}
+.sb-tools .ibtn.on{color:var(--fg-strong)}
+.sb-pop{position:absolute;top:40px;left:8px;right:8px;z-index:30;padding:10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)}
+.sb-pop .sb-search{margin:0 0 8px}
+.sb-lbl{font-size:11px;color:var(--faint);margin:8px 0 6px}
+.sb-chips{display:flex;flex-wrap:wrap;gap:4px}
+.sb-chip,.sb-pr{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;border:1px solid var(--border);font-size:11.5px;color:var(--muted)}
+.sb-chip.on,.sb-pr.on{color:var(--fg-strong);background:var(--surface-3);border-color:var(--border-strong)}
+.sb-pr{border-radius:var(--r-sm,6px);height:26px;width:100%;justify-content:flex-start;margin-bottom:2px}
+.sb-scroll{flex:1;overflow:auto;min-height:0;padding:2px 6px 12px}
+.sb-body{flex:1;overflow:auto;min-height:0}
+.sb-ghwrap{display:flex;align-items:center;padding-right:2px}
+.sb-gh{flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 8px;font-size:13px;font-weight:var(--fw-semibold);color:var(--fg-strong);text-align:left}
 .sb-gh:hover{color:var(--fg)}
 .sb-gh .ic{color:var(--faint)}
 .sb-gh .gl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sb-gh .gn{font-size:11px;font-weight:var(--fw-medium);color:var(--faint)}
-.sb-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:6px 8px 6px 10px;border-radius:var(--r-md);color:var(--fg);white-space:nowrap;min-width:0}
-.sb-row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.sb-row .meta{font-size:11.5px;color:var(--faint);font-weight:var(--fw-regular)}
+.sb-add{width:24px;height:24px;opacity:0}
+.sb-ghwrap:hover .sb-add,.sb-ghwrap:focus-within .sb-add{opacity:1}
+.sb-row{position:relative;display:flex;align-items:flex-start;gap:8px;width:100%;padding:6px 8px 6px 12px;border-radius:var(--r-md);color:var(--fg);min-width:0;cursor:pointer;outline:none}
+.sb-row:focus-visible{box-shadow:0 0 0 2px var(--accent) inset}
 .sb-row:hover{background:var(--surface-3)}
-.sb-row.active{background:var(--surface-3);color:var(--fg-strong);font-weight:var(--fw-semibold)}
-.sb-row.active .meta{color:var(--accent);font-weight:var(--fw-medium)}
+.sb-row.sel{background:var(--surface-3);color:var(--fg-strong)}
+.sb-row.sel .t{font-weight:var(--fw-semibold)}
+.sb-row.sel .meta{color:var(--accent)}
+.sb-row .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sb-row .t{font-size:13px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-row .meta{display:flex;align-items:center;gap:5px;min-width:0;font-size:11.5px;line-height:16px;color:var(--faint);overflow:hidden;white-space:nowrap}
+.sb-row .meta .ic{width:12px;height:12px;flex:none}
+.sb-row .meta>span,.sb-row .meta{text-overflow:ellipsis}
+.sb-row .rt{flex:none;display:flex;align-items:center;gap:4px;height:18px;margin-top:2px}
+.sb-arch{display:none;width:22px;height:22px}
+.sb-row:hover .sb-arch,.sb-row:focus-within .sb-arch{display:inline-grid}
 .sdot{width:7px;height:7px;border-radius:50%;flex:none}
 .sdot.need{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
 .sdot.live{background:var(--accent)}
-.sb-kids{margin:2px 0 6px 13px;padding-left:6px;border-left:1px solid var(--border-strong);display:flex;flex-direction:column;gap:1px}
-.sb-agent{padding:4px 8px 4px 10px;font-size:12.5px;gap:8px}
-.sb-agent.sel{background:var(--surface-3);color:var(--fg-strong)}
-.sb-more{padding:4px 8px 4px 25px;font-size:12px;color:var(--faint)}
+.sdot.unread{background:#3b82f6}
+.sdot.err{width:auto;height:auto;border-radius:0;background:none;color:var(--warn)}
+.sdot.err .ic{width:13px;height:13px;stroke-width:2}
+.sb-kids{position:relative;display:flex;flex-direction:column}
+.sb-kid{padding-left:30px}
+.sb-kid::before{content:'';position:absolute;left:16px;top:0;height:50%;width:9px;border-left:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);border-bottom-left-radius:4px}
+.sb-kid:not(:last-child)::after{content:'';position:absolute;left:16px;top:50%;bottom:0;border-left:1px solid var(--border-strong)}
+.sb-empty{padding:12px 10px;font-size:12px;color:var(--faint)}
+.sb-more{display:block;width:100%;text-align:left;padding:8px 8px 6px 12px;font-size:12px;color:var(--faint)}
+.sb-more:hover{color:var(--fg)}
+.sb-menu{position:fixed;z-index:60;min-width:188px;padding:4px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)}
+.sb-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:6px;font-size:12.5px;color:var(--fg);text-align:left}
+.sb-menu button:hover{background:var(--surface-3)}
+.sb-menu .ic{color:var(--muted)}
 .sb-wt .ic{color:var(--muted)}
 .sidebar .graph svg{min-width:0}
 .conn{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
@@ -671,7 +695,7 @@ button.bgn:hover{text-decoration:underline;text-underline-offset:2px}
 
 /* ---------- type & depth ---------- */
 .md,.bubble,.br-t,.q,.mr-t,.mi-t,.plan-doc,.small,.tc-act{font-variant-numeric:normal}
-.ch-tab,.sb-head h2,.p-head h2,.stat .v,.plan-doc h3,.wordmark{font-family:var(--font-display);letter-spacing:-.005em}
+.ch-tab,.p-head h2,.stat .v,.plan-doc h3,.wordmark{font-family:var(--font-display);letter-spacing:-.005em}
 *{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
 .card,.composer,.stat,.arow,.brief,.job,.steps{box-shadow:var(--hl)}
 .btn:disabled{opacity:.5;cursor:default}
@@ -844,6 +868,9 @@ button.bgn:hover{text-decoration:underline;text-underline-offset:2px}
     <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0Z"/><path d="M12 17v5"/></symbol>
     <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></symbol>
     <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8M10 12h4"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 3 3H7l3-3-1-6z"/><path d="M12 12v9"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18M6 12h12M10 19h4"/></symbol>
     <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
     <symbol id="i-gantt" viewBox="0 0 24 24"><path d="M3 4v16h18"/><path d="M7 8h7M10 12h8M8 16h5"/></symbol>
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
@@ -917,6 +944,21 @@ const AG = {
   tester:{c:'--a-tester',role:'teammate',kind:'teammate',model:'gpt-5.1-codex',prov:'corp-azure (azure)',status:'idle',task:'T4',act:'Idle: T4 waits on T2 and T3 · 1 held message',ctx:4,el:'24m',tok:'2k',where:'wt/tester',branch:'harness/r12/tester-T4',gen:1,comp:0,cache:0,sid:'e0195c3d'}
 };
 const ORDER = ['orchestrator','coder-1','coder-2','tester','explorer'];
+/* Sidebar runs (X1, sample). Only the orchestrator run is live; the others are placeholders.
+   ago = minutes since last activity (sorts the list). line2 = branch for worktree runs, project for main-checkout runs. */
+const RUNS = [
+  {id:'orchestrator', title:'Migrate auth to OIDC', project:'payments-api', live:true, ago:0},
+  {id:'r-418', title:'Idempotency keys for /v1/charges', project:'payments-api', st:'idle', line2:'harness/r11/idem-keys', ago:300},
+  {id:'r-ledger', title:'Ledger CSV export', project:'ledger-web', st:'idle', unread:true, pinned:true, line2:'harness/r11/csv-export', ago:120},
+  {id:'r-recon', title:'Ledger reconciliation report', project:'ledger-web', st:'running', line2:'harness/r12/recon', ago:45},
+  {id:'r-flaky', title:'Flaky rate-limiter test', project:'edge-proxy', st:'cancelled', line2:'harness/r11/flaky-rl', ago:90},
+  {id:'r-tokio', title:'Bump tokio to 1.48', project:'edge-proxy', st:'done', line2:'harness/r10/tokio', ago:1440},
+  {id:'r-payouts', title:'Payout webhook retries', project:'payments-api', st:'done', line2:'harness/r10/payout-retries', ago:2880},
+  {id:'r-cache', title:'Edge cache purge on deploy', project:'edge-proxy', st:'idle', line2:'harness/r10/cache-purge', ago:4320},
+  {id:'r-invoice', title:'Invoice PDF fonts', project:'ledger-web', st:'done', line2:'harness/r9/pdf-fonts', ago:7200},
+  {id:'r-refunds', title:'Refund status enum', project:'payments-api', st:'idle', line2:'harness/r11/refund-enum', ago:8000}
+];
+const EMPTY_PROJECTS = ['docs-site'];
 /* Context breakdown (H11), thousands of tokens, shaped like session.usage_info{system_tokens, tool_definitions_tokens,
    conversation_tokens}; files is the harness estimate carved out of conversation_tokens. Parts sum to ctx% of the window. */
 const CTXW = 200, CTXT = Math.min(0.8, 250/CTXW);   /* window (k tokens) and D11 threshold, same for every agent here */
@@ -1128,29 +1170,155 @@ function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; cle
 function meter(v,id='D5'){ return `<div class="meter" ${wa(id)} role="img" aria-label="Context ${v}% used; compaction at 80%, hard limit 95%"><i class="${v>=80?'hot':''}" style="width:${v}%"></i><span class="tick" style="left:80%"></span><span class="tick" style="left:95%"></span></div>`; }
 
 /* ======================= sidebar ======================= */
-function sessionsHtml(){
-  const live=ORDER.filter(a=>!['done','cancelled'].includes(AG[a].status)).length, n=needsCount();
-  const kids = ORDER.map(a=>{ const A=AG[a];
-    return `<button class="sb-row sb-agent ${state.view===a?'sel':''}" data-act="open" data-agent="${a}" ${wa('S3')}>${glyph(ST[A.status].g)}<span class="t">${a}</span>${bgBadge(a,true)}<span class="meta">${A.task||'lead'}</span></button>`; }).join('');
-  const other = (t,m) => `<button class="sb-row" data-act="demo" ${wa('X1')}><span class="sdot"></span><span class="t">${t}</span><span class="meta">${m}</span></button>`;
-  const grp = (id,icon,label,count,inner,w) => `<button class="sb-gh" data-act="sbgroup" data-g="${id}" aria-expanded="${!state.sbClosed[id]}" ${w?wa(w):''}>${ic(state.sbClosed[id]?'chev':'down','xs')}${ic(icon,'sm')}<span class="gl">${label}</span>${count!=null?`<span class="gn">${count}</span>`:''}</button>${state.sbClosed[id]?'':inner}`;
-  return grp('recent','clock','Recent',null,
-      `<button class="sb-row active" data-act="open" data-agent="orchestrator" ${wa('S1')}><span class="sdot ${n?'need':'live'}" title="${n?n+' need you':'running'}"></span><span class="t">Migrate auth to OIDC</span><span class="meta" ${wa('S2')}>${live} live</span></button>
-      <div class="sb-kids">${kids}</div>${other('Flaky rate-limiter test','2h')}${other('Bump tokio to 1.48','yday')}${other('Ledger CSV export','Mon')}<div class="sb-more">Show more sessions</div>`)
-    + (state.details ? grp('repo','folder','payments-api',2,`${other('Migrate auth to OIDC','now')}${other('Idempotency keys for /v1/charges','#418')}`,'S4') : '');
+/* Sidebar, laid out like the Code-tab reference: slim toolbar (filter, group, new), Pinned, project groups
+   (alphabetical, empty projects listed), two-line rows, child agents under their run on an elbow, one status dot
+   per row by priority, hover archive, right-click menu, Show more. */
+const DOT_OF = {cancelled:'err', blocked:'err', permission:'need', input:'need', running:'run', waiting:'run', starting:'run', rotating:'run'};
+function runStatus(r){
+  if(!r.live) return r.st;
+  const sts = ORDER.map(a=>AG[a].status), has = k => sts.some(s=>DOT_OF[s]===k);
+  return has('err') ? 'cancelled' : has('need') ? 'permission' : has('run') ? 'running' : 'idle';
 }
-function sessionsHead(){
-  return `<div class="sb-head"><h2>Sessions</h2>
-      <button class="ibtn" data-act="demo" aria-label="New session" title="New session" ${wa('S7')}>${ic('edit','sm')}</button>
-      <button class="ibtn mobile-only" data-act="close-overlays" aria-label="Close sidebar">${ic('x')}</button></div>
-    <label class="sb-search" ${wa('S7')}>${ic('search','sm')}<input placeholder="Search sessions" aria-label="Search sessions"></label>`;
+/* Dot priority when several apply: err > need > run > unread. */
+const rowKind = r => DOT_OF[runStatus(r)] || (r.unread ? 'unread' : null);
+function sbDot(k){
+  if(k==='err') return `<span class="sdot err" title="Cancelled or failed" aria-label="Cancelled or failed">${ic('alert','xs')}</span>`;
+  if(k==='need') return `<span class="sdot need" title="Needs you" aria-label="Needs you"></span>`;
+  if(k==='run') return glyph('run');
+  if(k==='wait') return glyph('wait');
+  if(k==='unread') return `<span class="sdot unread" title="Unread" aria-label="Unread"></span>`;
+  return '';
+}
+const sbProjects = () => [...new Set([...EMPTY_PROJECTS, ...RUNS.map(r=>r.project)])].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+function runVisible(r){
+  if(state.sbHidden && state.sbHidden[r.id]) return false;
+  const q=(state.sbQuery||'').trim().toLowerCase();
+  if(q && !r.title.toLowerCase().includes(q)) return false;
+  if(state.sbStatus){ const k=rowKind(r); if(state.sbStatus==='idle' ? k : k!==state.sbStatus) return false; }
+  const picked = Object.keys(state.sbProj||{}).filter(p=>state.sbProj[p]);
+  return !picked.length || picked.includes(r.project);
+}
+/* Pinned runs, then the most recent unpinned runs up to the Show more limit. */
+function sbSplit(){
+  const pinned = RUNS.filter(r=>r.pinned && runVisible(r));
+  const all = RUNS.filter(r=>!r.pinned && runVisible(r)).sort((a,b)=>a.ago-b.ago);
+  const lim = state.sbLimit||6;
+  return {pinned, shown:all.slice(0,lim), more:all.length-Math.min(all.length,lim)};
+}
+function sbVisibleRuns(){ const s=sbSplit(); return [...s.pinned, ...s.shown]; }
+function sbRunRow(r){
+  const kind = rowKind(r);
+  const sel = r.live && ORDER.includes(state.view) ? ' sel' : '';
+  const act = r.live ? `data-act="open" data-agent="orchestrator" ${wa('S1')}` : `data-act="demo" ${wa('X1')}`;
+  return `<div class="sb-row${sel}" role="treeitem" tabindex="0" aria-level="1" data-run="${r.id}" ${act}>
+    <span class="tx"><span class="t">${esc(r.title)}</span><span class="meta" ${r.live?wa('S2'):''}>${ic('branch','xs')}${esc(r.line2||'main')}</span></span>
+    <span class="rt">${sbDot(kind)}<button class="ibtn sb-arch" data-act="sb-archive" data-run="${r.id}" aria-label="Archive ${esc(r.title)}" title="Archive">${ic('archive','xs')}</button></span></div>`;
+}
+function sbChild(a){
+  const A=AG[a], branch = A.where.startsWith('wt/') ? A.branch : 'main';
+  const k = A.status==='waiting' ? 'wait' : DOT_OF[A.status]||null;
+  return `<div class="sb-row sb-kid${state.view===a?' sel':''}" role="treeitem" tabindex="0" aria-level="2" data-act="open" data-agent="${a}" ${wa('S3')}>
+    <span class="tx"><span class="t">${a}</span><span class="meta">${ic('branch','xs')}${esc(branch)}</span></span>
+    <span class="rt">${bgBadge(a,true)}${sbDot(k)}</span></div>`;
+}
+function sbRunBlock(r){
+  const kids = r.live ? ORDER.filter(a=>a!=='orchestrator').map(sbChild).join('') : '';
+  return sbRunRow(r) + (kids ? `<div class="sb-kids" role="group">${kids}</div>` : '');
+}
+function sbHead(key, label, addable, closed, w){
+  return `<div class="sb-ghwrap"><button class="sb-gh" data-act="sbgroup" data-g="${key}" aria-expanded="${!closed}" ${w?wa(w):''}>${ic(closed?'chev':'down','xs')}<span class="gl">${esc(label)}</span></button>${addable?`<button class="ibtn sb-add" data-act="demo" aria-label="New session in ${esc(label)}" title="New session in ${esc(label)}">${ic('plus','xs')}</button>`:''}</div>`;
+}
+function sbListHtml(){
+  const {pinned, shown, more} = sbSplit();
+  const filtering = !!(state.sbStatus || state.sbQuery || Object.values(state.sbProj||{}).some(Boolean));
+  let h = '';
+  if(pinned.length) h += sbHead('pinned','Pinned',false,!!state.sbClosed.pinned) + (state.sbClosed.pinned ? '' : pinned.map(r=>sbRunBlock(r)).join(''));
+  if(state.sbGroup!==false){
+    sbProjects().forEach(p=>{
+      const rs = shown.filter(r=>r.project===p);
+      if(filtering && !rs.length) return;
+      const key='p:'+p, closed = rs.length===0 || !!state.sbClosed[key];
+      h += sbHead(key, p, true, closed, 'S4') + (closed ? '' : rs.map(r=>sbRunBlock(r)).join(''));
+    });
+  } else {
+    h += shown.map(r=>sbRunBlock(r)).join('');
+  }
+  if(more>0) h += `<button class="sb-more" data-act="sb-more">Show more</button>`;
+  if(!h) h = `<div class="sb-empty">${filtering ? 'No sessions match these filters.' : 'No sessions yet. Start one with the + button or Ctrl+N.'}</div>`;
+  return h;
+}
+function renderSbList(){ const el=document.getElementById('sbList'); if(el) el.innerHTML = sbListHtml(); }
+function sbToolsHtml(){
+  const filt = !!(state.sbStatus || state.sbQuery || Object.values(state.sbProj||{}).some(Boolean));
+  const grouped = state.sbGroup!==false;
+  return `<div class="sb-tools">
+      <button class="ibtn${state.sbPop||filt?' on':''}" data-act="sb-pop" aria-expanded="${!!state.sbPop}" aria-label="Filter and search sessions" title="Filter and search">${ic('filter','sm')}</button>
+      <button class="ibtn${grouped?' on':''}" data-act="sb-group" aria-pressed="${grouped}" aria-label="Group by project" title="Group by project">${ic('folder','sm')}</button>
+      <span class="spacer"></span>
+      <button class="ibtn" data-act="demo" aria-label="New session" title="New session, Ctrl+N" ${wa('S7')}>${ic('edit','sm')}</button>
+      <button class="ibtn mobile-only" data-act="close-overlays" aria-label="Close sidebar">${ic('x')}</button></div>`;
+}
+function sbPopHtml(){
+  if(!state.sbPop) return '';
+  const chips = [['run','Running'],['need','Needs input'],['unread','Unread'],['idle','Idle']];
+  return `<div class="sb-pop" role="dialog" aria-label="Filter and search sessions">
+      <label class="sb-search">${ic('search','sm')}<input data-sbq placeholder="Search sessions" aria-label="Search sessions" value="${esc(state.sbQuery||'')}"></label>
+      <div class="sb-lbl">Status</div>
+      <div class="sb-chips">${chips.map(([v,l])=>`<button class="sb-chip${state.sbStatus===v?' on':''}" data-act="sb-status" data-v="${v}" aria-pressed="${state.sbStatus===v}">${l}</button>`).join('')}</div>
+      <div class="sb-lbl">Project</div>
+      ${sbProjects().map(p=>{ const on=!!(state.sbProj&&state.sbProj[p]); return `<button class="sb-pr${on?' on':''}" data-act="sb-proj" data-p="${esc(p)}" aria-pressed="${on}">${ic(on?'check':'folder','xs')}${esc(p)}</button>`; }).join('')}
+    </div>`;
+}
+function sbMenuHtml(){
+  const m=state.sbMenu; if(!m) return '';
+  const r=RUNS.find(x=>x.id===m.id); if(!r) return '';
+  const item = (op,label,icn) => `<button role="menuitem" data-act="sbm" data-op="${op}" data-run="${r.id}">${ic(icn,'sm')}${label}</button>`;
+  const x=Math.min(m.x, innerWidth-200), y=Math.min(m.y, innerHeight-200);
+  return `<div class="sb-menu" role="menu" style="left:${x}px;top:${y}px">${item('rename','Rename','edit')}${item('pin', r.pinned?'Unpin':'Pin','pin')}${item('unread', r.unread?'Mark as read':'Mark as unread','check')}${!r.live&&r.line2&&r.line2.includes('/')?item('copy','Copy branch name','branch'):''}${item('archive','Archive','archive')}</div>`;
+}
+/* Everything the Sessions list needs: toolbar, optional filter popover, the list, and the menu. Chat and Code both use it. */
+function sessionsPanel(){
+  return sbToolsHtml() + sbPopHtml() + `<div class="sb-scroll" id="sbList" role="tree" aria-label="Sessions">${sbListHtml()}</div>` + sbMenuHtml();
 }
 function renderSidebar(keep){
   const sb=$('#sidebar'), sel='.sb-scroll,.tr,.chg', old=sb.querySelector(sel), prev=old?old.scrollTop:0;
   sb.setAttribute('aria-label', state.mode==='code'?'Files and sessions':'Sessions');
-  sb.innerHTML = state.mode==='code' ? codeSideHtml() : sessionsHead() + `<div class="sb-scroll">${sessionsHtml()}</div>`;
+  sb.innerHTML = state.mode==='code' ? codeSideHtml() : sessionsPanel();
   if(keep){ const nw=sb.querySelector(sel); if(nw) nw.scrollTop=prev; }
 }
+function sbOp(op, id){
+  const r=RUNS.find(x=>x.id===id); state.sbMenu=null; if(!r) return renderSidebar(true);
+  if(op==='pin'){ r.pinned=!r.pinned; toast(r.pinned?`Pinned “${r.title}”`:`Unpinned “${r.title}”`); }
+  else if(op==='unread'){ r.unread=!r.unread; }
+  else if(op==='archive'){ if(r.live) toast('The live run can’t be archived in this mockup'); else { state.sbHidden=state.sbHidden||{}; state.sbHidden[id]=true; toast(`Archived “${r.title}”`); } }
+  else if(op==='rename') toast('Rename: click the run title in the header (placeholder)');
+  else if(op==='copy') toast(`Copied ${r.line2}`);
+  renderSidebar(true);
+}
+function cycleRun(d){
+  const ids = sbVisibleRuns().map(r=>r.id), i = ids.indexOf('orchestrator');
+  const next = RUNS.find(r=>r.id===ids[(i+d+ids.length)%ids.length]);
+  if(!next) return;
+  if(next.live) openAgent('orchestrator'); else toast(`${next.title}: placeholder run in this mockup`);
+}
+/* Sidebar input: search typing refreshes only the list so the field keeps focus. */
+document.addEventListener('input', e=>{ if(e.target.matches && e.target.matches('[data-sbq]')){ state.sbQuery=e.target.value; renderSbList(); } });
+/* Right-click a run for the menu. */
+document.addEventListener('contextmenu', e=>{
+  const row = e.target.closest && e.target.closest('.sb-row[data-run]'); if(!row) return;
+  e.preventDefault(); state.sbMenu={id:row.dataset.run, x:e.clientX, y:e.clientY}; renderSidebar(true);
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && (state.sbMenu || state.sbPop)){ state.sbMenu=null; state.sbPop=false; renderSidebar(true); return; }
+  if(e.ctrlKey && !e.altKey && (e.key==='n' || e.key==='N')){ e.preventDefault(); toast('New session (placeholder in this mockup)'); return; }
+  if(e.ctrlKey && e.key==='Tab'){ e.preventDefault(); cycleRun(e.shiftKey?-1:1); return; }
+  const row = e.target.closest && e.target.closest('.sb-row'); if(!row || e.target.closest('.sb-arch')) return;
+  if(e.key==='Enter'){ e.preventDefault(); row.click(); }
+  else if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+    e.preventDefault(); const rows=[...document.querySelectorAll('#sidebar .sb-row')], i=rows.indexOf(row);
+    rows[Math.min(rows.length-1, Math.max(0, i+(e.key==='ArrowDown'?1:-1)))].focus();
+  }
+});
 
 /* ======================= topbar ======================= */
 function isDark(){ const t=document.documentElement.dataset.theme; return t ? t==='dark' : !matchMedia('(prefers-color-scheme: light)').matches; }
@@ -1770,7 +1938,7 @@ function changesHtml(){
 function codeSideHtml(){
   const t=state.codeTab, n=Object.values(WT).reduce((s,l)=>s+l.length,0);
   const tabs = `<div class="sb-tabs" role="tablist" aria-label="Code sidebar">${[['files','Explorer'],['changes','Changes'],['sessions','Sessions']].map(([k,l])=>`<button role="tab" aria-selected="${t===k}" class="${t===k?'on':''}" data-act="codetab" data-v="${k}">${l}${k==='changes'?`<span class="n">${n}</span>`:''}</button>`).join('')}</div>`;
-  if(t==='sessions') return tabs + `<label class="sb-search" style="margin-top:10px" ${wa('S7')}>${ic('search','sm')}<input placeholder="Search sessions" aria-label="Search sessions"></label><div class="sb-scroll">${sessionsHtml()}</div>`;
+  if(t==='sessions') return tabs + sessionsPanel();
   if(t==='changes') return tabs + `<div class="chg sb-body" ${wa('W2')}>${changesHtml()}</div>`;
   return tabs + `<div class="wtpick" ${wa('W1')}>${['coder-1','coder-2','tester','main'].map(w=>`<button class="${state.codeWt===w?'on':''}" data-act="wtpick" data-v="${w}">${w==='main'?ic('folder','xs'):dot(w)}${w}</button>`).join('')}</div>
     <div class="wtmeta">${esc(wtName(state.codeWt))}</div><div class="tr sb-body" ${wa('W1')}>${treeHtml(state.codeWt)}</div>`;
@@ -2135,7 +2303,7 @@ document.addEventListener('click',e=>{
     const w=e.target.closest('[data-w]'); if(w){ e.preventDefault(); showWire(w.dataset.w); return; }
   }
   if(state.ctxPop && !e.target.closest('#ctxpop') && !e.target.closest('[data-act="ctx"]')){ state.ctxPop=false; renderCstats(); }
-  const el=e.target.closest('[data-act]'); if(!el) { if(state.menu&&!e.target.closest('#tomenu')){state.menu=false;renderComposer();} return; }
+  const el=e.target.closest('[data-act]'); if(!el) { if(state.menu&&!e.target.closest('#tomenu')){state.menu=false;renderComposer();} if(state.sbMenu || (state.sbPop && !e.target.closest('.sb-pop'))){ state.sbMenu=null; state.sbPop=false; renderSidebar(true); } return; }
   const act=el.dataset.act, a=el.dataset.agent;
   if(state.conn!=='ok' && OFFLINE_BLOCK.has(act)){ toast('Reconnect first: this needs the harness'); return; }
   if(act!=='stop' && state.stopArm){ state.stopArm=null; }
@@ -2203,6 +2371,13 @@ document.addEventListener('click',e=>{
     case 'toggle-side': if(mobile()) state.sideOpen=!state.sideOpen; else state.sideHidden=!state.sideHidden; renderAll(true); break;
     case 'toggle-panel': if(state.mode==='code'){ state.mode='chat'; state.panelOpen=true; } else state.panelOpen=!state.panelOpen; renderAll(true); break;
     case 'sbgroup': state.sbClosed[el.dataset.g]=!state.sbClosed[el.dataset.g]; renderSidebar(true); break;
+    case 'sb-pop': state.sbPop=!state.sbPop; state.sbMenu=null; renderSidebar(true); break;
+    case 'sb-group': state.sbGroup = !(state.sbGroup!==false); renderSidebar(true); break;
+    case 'sb-status': state.sbStatus = state.sbStatus===el.dataset.v ? null : el.dataset.v; renderSidebar(true); break;
+    case 'sb-proj': state.sbProj=state.sbProj||{}; state.sbProj[el.dataset.p]=!state.sbProj[el.dataset.p]; renderSidebar(true); break;
+    case 'sb-more': state.sbLimit=(state.sbLimit||6)+6; renderSidebar(true); break;
+    case 'sb-archive': sbOp('archive', el.dataset.run); break;
+    case 'sbm': sbOp(el.dataset.op, el.dataset.run); break;
     case 'codetab': state.codeTab=el.dataset.v; renderSidebar(false); break;
     case 'wtpick': state.codeWt=el.dataset.v; renderSidebar(true); renderEditor(); break;
     case 'tree': state.treeOpen[el.dataset.p]=!state.treeOpen[el.dataset.p]; renderSidebar(true); break;
